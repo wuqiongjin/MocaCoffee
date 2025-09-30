@@ -36,6 +36,8 @@ interface ToolbarProps {
   scale: number;
   onZoomIn: () => void;
   onZoomOut: () => void;
+  isCombinationMode: boolean;
+  setCombinationMode: (mode: boolean) => void;
 }
 
 export default function Toolbar({ 
@@ -56,7 +58,9 @@ export default function Toolbar({
   canPaste,
   scale,
   onZoomIn,
-  onZoomOut
+  onZoomOut,
+  isCombinationMode,
+  setCombinationMode
 }: ToolbarProps) {
   const tools = [
     { id: "mouse", icon: <MousePointer size={20} />, label: "鼠标状态" },
@@ -86,11 +90,21 @@ export default function Toolbar({
           {tools.map((tool) => (
             <button
               key={tool.id}
-              className={`p-2 rounded text-xs flex flex-col items-center ${
-                selectedTool === tool.id ? "bg-blue-200" : "bg-white hover:bg-gray-100"
+              className={`p-2 rounded text-xs flex flex-col items-center border-2 transition-all duration-200 ${
+                selectedTool === tool.id 
+                  ? "bg-blue-200 border-blue-500 shadow-lg ring-2 ring-blue-300 transform scale-105" 
+                  : "bg-white hover:bg-gray-100 border-transparent hover:border-gray-300"
               }`}
-              onClick={() => setSelectedTool(tool.id)}
+              onClick={() => {
+                console.log('Tool clicked:', tool.id, 'Current selectedTool:', selectedTool);
+                setSelectedTool(tool.id);
+              }}
               title={tool.label}
+              style={{
+                backgroundColor: selectedTool === tool.id ? '#dbeafe' : undefined,
+                borderColor: selectedTool === tool.id ? '#3b82f6' : undefined,
+                boxShadow: selectedTool === tool.id ? '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' : undefined
+              }}
             >
               {tool.icon}
               <span className="mt-1">{tool.label}</span>
@@ -200,6 +214,21 @@ export default function Toolbar({
             <Redo size={16} />
           </button>
         </div>
+      </div>
+
+      {/* 组合状态 */}
+      <div>
+        <h3 className="text-sm font-semibold mb-2">状态</h3>
+        <button 
+          className={`w-full p-2 rounded text-xs flex items-center justify-center ${
+            isCombinationMode ? "bg-blue-200" : "bg-white hover:bg-gray-100"
+          }`}
+          onClick={() => setCombinationMode(!isCombinationMode)}
+          title="组合状态 - 支持多选音符"
+        >
+          <Square size={16} className="mr-1" />
+          组合状态
+        </button>
       </div>
 
       {/* 播放控制 */}

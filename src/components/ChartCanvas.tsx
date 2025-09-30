@@ -10,6 +10,7 @@ interface ChartCanvasProps {
   beatDisplay: number;
   onMousePositionChange: (position: { lane: number; beat: number } | null) => void;
   scale: number;
+  isCombinationMode: boolean;
 }
 
 const LANES = 5;   // 五条轨道
@@ -25,7 +26,8 @@ export default function ChartCanvas({
   setSelectedNotes,
   beatDisplay,
   onMousePositionChange,
-  scale
+  scale,
+  isCombinationMode
 }: ChartCanvasProps) {
   const [offsetY, setOffsetY] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -62,11 +64,26 @@ export default function ChartCanvas({
   // 计算音符的Y位置
   const getNoteY = (beat: number, subBeat: number = 0) => {
     let y = 0;
-    for (let b = 0; b < beat; b++) {
+    const integerBeat = Math.floor(beat);
+    const fractionalBeat = beat - integerBeat;
+
+    // 计算整数beat的Y位置
+    for (let b = 0; b < integerBeat; b++) {
       y += getBeatHeight(b) * scale;
     }
-    const currentBeatHeight = getBeatHeight(beat) * scale;
-    y += (subBeat * currentBeatHeight) / beatDisplay;
+
+    // 加上小数beat的Y位置
+    if (fractionalBeat > 0) {
+      const currentBeatHeight = getBeatHeight(integerBeat) * scale;
+      y += fractionalBeat * currentBeatHeight;
+    }
+
+    // 加上subBeat的Y位置
+    if (subBeat > 0) {
+      const currentBeatHeight = getBeatHeight(integerBeat) * scale;
+      y += (subBeat * currentBeatHeight) / beatDisplay;
+    }
+
     return y;
   };
 
@@ -77,26 +94,55 @@ export default function ChartCanvas({
         note.type === "Single" && note.beat === beat && note.lane === lane && note.subBeat === subBeat
       );
       if (noteIndex !== -1) {
-        if (selectedNotes.includes(noteIndex)) {
-          setSelectedNotes(selectedNotes.filter(i => i !== noteIndex));
+        if (isCombinationMode) {
+          // 组合状态下支持多选
+          if (selectedNotes.includes(noteIndex)) {
+            setSelectedNotes(selectedNotes.filter(i => i !== noteIndex));
+          } else {
+            setSelectedNotes([...selectedNotes, noteIndex]);
+          }
         } else {
-          setSelectedNotes([...selectedNotes, noteIndex]);
+          // 普通状态下单选
+          setSelectedNotes([noteIndex]);
         }
+      } else if (!isCombinationMode) {
+        // 点击空白区域时取消选择
+        setSelectedNotes([]);
       }
       return;
     }
 
+    // 直接使用传入的精确beat值，不再重复计算
+    const preciseBeat = beat;
+    // subBeat应该为0，因为beat已经包含了精确位置信息
+    const preciseSubBeat = 0;
+
     if (selectedTool === "single") {
-      setNotes([...notes, { beat, lane, subBeat, type: "Single" }]);
+      setNotes([...notes, { beat: preciseBeat, lane, subBeat: preciseSubBeat, type: "Single" }]);
     } else if (selectedTool === "flick") {
-      setNotes([...notes, { beat, lane, subBeat, type: "Single", flick: true }]);
+      setNotes([...notes, { beat: preciseBeat, lane, subBeat: preciseSubBeat, type: "Single", flick: true }]);
     } else if (selectedTool === "bpm") {
       const bpm = parseInt(prompt("请输入 BPM 数值") || "0", 10);
       if (!isNaN(bpm) && bpm > 0) {
-        setNotes([...notes, { beat, type: "BPM", bpm }]);
+        // 限制beat精度为16位小数
+        const finalBeat = Math.round(preciseBeat * 10000000000000000) / 10000000000000000;
+
+        // 检查是否已存在相同beat的BPM，如果存在则覆盖
+        const existingBpmIndex = notes.findIndex(note =>
+          note.type === "BPM" && Math.abs(note.beat - finalBeat) < 0.0000000000000001
+        );
+        if (existingBpmIndex !== -1) {
+          // 覆盖现有BPM
+          const newNotes = [...notes];
+          newNotes[existingBpmIndex] = { beat: finalBeat, type: "BPM", bpm };
+          setNotes(newNotes);
+        } else {
+          // 添加新BPM
+          setNotes([...notes, { beat: finalBeat, type: "BPM", bpm }]);
+        }
       }
     } else if (selectedTool === "slide") {
-      const newBuffer = [...slideBuffer, { beat, lane, subBeat }];
+      const newBuffer = [...slideBuffer, { beat: preciseBeat, lane, subBeat: preciseSubBeat }];
       if (newBuffer.length === 2) {
         // 检查滑条是否横向放置
         const [p1, p2] = newBuffer;
@@ -126,10 +172,12 @@ export default function ChartCanvas({
           y2: e.clientY - rect.top
         });
       }
-    } else {
+    } else if (selectedTool === "mouse" && e.shiftKey) {
+      // Shift+鼠标拖拽进行画布滚动
       setDragging(true);
       setDragStart({ x: e.clientX, y: e.clientY });
     }
+    // 其他情况下不允许拖拽画布
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -140,14 +188,16 @@ export default function ChartCanvas({
 
       // 计算鼠标位置对应的轨道和节拍
       const lane = Math.floor(x / (LANE_WIDTH * scale));
-      const beat = Math.floor((y - offsetY) / (BEAT_HEIGHT * scale));
 
-      // 计算子节拍位置（暂时未使用，但保留用于未来功能）
-      // const relativeY = (y - offsetY) - (beat * BEAT_HEIGHT * scale);
-      // const subBeat = Math.floor((relativeY / (BEAT_HEIGHT * scale)) * beatDisplay);
+      // 计算精确的beat位置（支持小数）
+      const relativeY = y - offsetY;
+      const beatHeight = BEAT_HEIGHT * scale;
+      const beat = relativeY / beatHeight;
 
       if (lane >= 0 && lane < LANES && beat >= 0) {
-        onMousePositionChange({ lane, beat });
+        // 限制小数位数为16位
+        const preciseBeat = Math.round(beat * 10000000000000000) / 10000000000000000;
+        onMousePositionChange({ lane, beat: preciseBeat });
       } else {
         onMousePositionChange(null);
       }
@@ -162,7 +212,8 @@ export default function ChartCanvas({
           y2: e.clientY - rect.top
         });
       }
-    } else if (dragging && dragStart) {
+    } else if (dragging && dragStart && selectedTool === "mouse" && e.shiftKey) {
+      // 只有在Shift+鼠标拖拽时才移动画布
       setOffsetY(offsetY + (e.clientY - dragStart.y));
       setDragStart({ x: e.clientX, y: e.clientY });
     }
@@ -179,10 +230,23 @@ export default function ChartCanvas({
       const selectedIndices: number[] = [];
       notes.forEach((note, index) => {
         if (note.type === "Single") {
-          const noteX = note.lane * LANE_WIDTH * scale;
-          const noteY = note.beat * BEAT_HEIGHT * scale + offsetY;
+          const noteX = note.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2; // 音符中心X位置
+          const noteY = getNoteY(note.beat, note.subBeat || 0); // 使用正确的Y位置计算
 
           if (noteX >= minX && noteX <= maxX && noteY >= minY && noteY <= maxY) {
+            selectedIndices.push(index);
+          }
+        } else if (note.type === "Slide") {
+          // 检查滑条的两个端点是否在选择区域内
+          const [p1, p2] = note.connections;
+          const x1 = p1.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
+          const y1 = getNoteY(p1.beat, p1.subBeat || 0);
+          const x2 = p2.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
+          const y2 = getNoteY(p2.beat, p2.subBeat || 0);
+
+          // 如果滑条的任一端点在选择区域内，则选中整个滑条
+          if ((x1 >= minX && x1 <= maxX && y1 >= minY && y1 <= maxY) ||
+            (x2 >= minX && x2 <= maxX && y2 >= minY && y2 <= maxY)) {
             selectedIndices.push(index);
           }
         }
@@ -333,17 +397,19 @@ export default function ChartCanvas({
                 <g key={idx}>
                   <line
                     x1={0}
-                    y1={y + 20}
+                    y1={y}
                     x2={LANES * LANE_WIDTH * scale}
-                    y2={y + 20}
-                    stroke="green"
-                    strokeWidth={2}
+                    y2={y}
+                    stroke="red"
+                    strokeWidth={3}
+                    strokeDasharray="5,5"
                   />
                   <text
                     x={10}
                     y={y + 15}
                     fontSize={14 * scale}
-                    fill="green"
+                    fill="red"
+                    fontWeight="bold"
                   >
                     BPM {note.bpm}
                   </text>
@@ -420,24 +486,62 @@ export default function ChartCanvas({
             />
           )}
 
-          {/* 点击放置层 - 支持子节拍 */}
-          {Array.from({ length: BEATS }).map((_, beat) => {
-            const beatHeight = getBeatHeight(beat) * scale;
-            return Array.from({ length: LANES }).map((_, lane) =>
-              Array.from({ length: beatDisplay }).map((_, subBeat) => {
-                const y = getNoteY(beat, subBeat);
-                return (
-                  <rect
-                    key={`${beat}-${lane}-${subBeat}`}
-                    x={lane * LANE_WIDTH * scale}
-                    y={y}
-                    width={LANE_WIDTH * scale}
-                    height={beatHeight / beatDisplay}
-                    fill="transparent"
-                    onClick={() => handleClick(beat, lane, subBeat)}
-                  />
-                );
-              })
+          {/* 点击放置层 - 支持精确beat位置 */}
+          {Array.from({ length: LANES }).map((_, lane) => {
+            const laneX = lane * LANE_WIDTH * scale;
+            return (
+              <rect
+                key={`lane-${lane}`}
+                x={laneX}
+                y={0}
+                width={LANE_WIDTH * scale}
+                height={BEATS * BEAT_HEIGHT * scale}
+                fill="transparent"
+                onClick={(e) => {
+                  const rect = canvasRef.current?.getBoundingClientRect();
+                  if (rect) {
+                    const y = e.clientY - rect.top;
+                    const relativeY = y - offsetY;
+
+                    // 使用与getNoteY完全对应的反向计算
+                    let beat = 0;
+                    let currentY = 0;
+
+                    // 遍历所有beat，找到鼠标位置对应的精确beat
+                    for (let b = 0; b < BEATS; b++) {
+                      const beatHeight = getBeatHeight(b) * scale;
+                      if (relativeY >= currentY && relativeY < currentY + beatHeight) {
+                        // 在当前beat内，计算精确位置
+                        const beatProgress = (relativeY - currentY) / beatHeight;
+                        beat = b + beatProgress;
+                        break;
+                      }
+                      currentY += beatHeight;
+                    }
+
+                    // 如果鼠标位置超出了所有beat范围，使用最后一个beat
+                    if (beat === 0 && relativeY >= currentY) {
+                      beat = BEATS - 1 + 0.999;
+                    }
+
+                    console.log('Mouse Y:', relativeY, 'Calculated beat:', beat);
+                    console.log('BEAT_HEIGHT:', BEAT_HEIGHT, 'scale:', scale);
+                    console.log('getBeatHeight(0):', getBeatHeight(0));
+
+                    // 验证计算是否正确
+                    const testY = getNoteY(beat);
+                    console.log('Test Y for beat', beat, ':', testY);
+
+                    // 计算精确的beat位置（基于当前节拍显示）
+                    // 找到最近的子节拍位置
+                    const subBeatPosition = beat * beatDisplay;
+                    const nearestSubBeat = Math.round(subBeatPosition);
+                    const preciseBeat = nearestSubBeat / beatDisplay;
+                    console.log('SubBeat position:', subBeatPosition, 'Nearest subBeat:', nearestSubBeat, 'Precise beat:', preciseBeat);
+                    handleClick(preciseBeat, lane);
+                  }
+                }}
+              />
             );
           })}
         </svg>

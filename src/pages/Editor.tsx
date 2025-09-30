@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Toolbar from "../components/Toolbar";
 import ChartCanvas from "../components/ChartCanvas";
 import NoteInfoPanel from "../components/NoteInfoPanel";
@@ -11,14 +11,19 @@ interface EditorProps {
 
 export default function Editor({ }: EditorProps) {
   const [selectedTool, setSelectedTool] = useState("mouse");
-  const [notes, setNotes] = useState<ChartNote[]>([]);
+  const [notes, setNotes] = useState<ChartNote[]>([
+    { beat: 0, type: "BPM", bpm: 120 } // 默认BPM 120
+  ]);
   const [selectedNotes, setSelectedNotes] = useState<number[]>([]);
   const [beatDisplay, setBeatDisplay] = useState(4); // 默认1/4拍显示
   const [mousePosition, setMousePosition] = useState<{ lane: number; beat: number } | null>(null);
-  const [history, setHistory] = useState<ChartNote[][]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [history, setHistory] = useState<ChartNote[][]>([
+    [{ beat: 0, type: "BPM", bpm: 120 }] // 初始历史记录
+  ]);
+  const [historyIndex, setHistoryIndex] = useState(0);
   const [clipboard, setClipboard] = useState<ChartNote[]>([]);
   const [scale, setScale] = useState(1);
+  const [isCombinationMode, setIsCombinationMode] = useState(false);
 
   const addToHistory = (newNotes: ChartNote[]) => {
     const newHistory = history.slice(0, historyIndex + 1);
@@ -114,62 +119,111 @@ export default function Editor({ }: EditorProps) {
     }
   };
 
-  return (
-    <div className="flex h-screen">
-      {/* 左侧工具栏 */}
-      <div className="w-64 bg-gray-100 border-r">
-        <Toolbar 
-          selectedTool={selectedTool} 
-          setSelectedTool={setSelectedTool}
-          beatDisplay={beatDisplay}
-          setBeatDisplay={setBeatDisplay}
-          onUndo={undo}
-          onRedo={redo}
-          canUndo={historyIndex > 0}
-          canRedo={historyIndex < history.length - 1}
-          onCopy={copySelected}
-          onCut={cutSelected}
-          onPaste={() => {
+  // 键盘快捷键处理
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        switch (e.key.toLowerCase()) {
+          case 'c':
+            e.preventDefault();
+            copySelected();
+            break;
+          case 'x':
+            e.preventDefault();
+            cutSelected();
+            break;
+          case 'v':
+            e.preventDefault();
             if (mousePosition) {
               pasteAtPosition(mousePosition.beat, mousePosition.lane);
             }
-          }}
-          onDelete={deleteSelected}
-          onMirror={mirrorSelected}
-          canCopy={selectedNotes.length > 0}
-          canPaste={clipboard.length > 0}
-          scale={scale}
-          onZoomIn={() => setScale(scale * 1.2)}
-          onZoomOut={() => setScale(scale / 1.2)}
-        />
-      </div>
-      
-      {/* 中间谱面画布区域 */}
-      <div className="flex-1 flex flex-col">
-        <div className="flex-1 overflow-auto">
-          <ChartCanvas 
-            notes={notes} 
-            setNotes={handleNotesChange} 
-            selectedTool={selectedTool}
-            selectedNotes={selectedNotes}
-            setSelectedNotes={setSelectedNotes}
+            break;
+          case 'z':
+            e.preventDefault();
+            if (e.shiftKey) {
+              redo();
+            } else {
+              undo();
+            }
+            break;
+          case 'y':
+            e.preventDefault();
+            redo();
+            break;
+        }
+      } else if (e.key === 'Delete') {
+        e.preventDefault();
+        deleteSelected();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedNotes, mousePosition, clipboard, historyIndex, history.length]);
+
+  return (
+    <div className="h-screen">
+      {/* 主编辑区域 */}
+      <div className="flex h-full">
+        {/* 左侧工具栏 */}
+        <div className="w-64 bg-gray-100 border-r">
+          <Toolbar 
+            selectedTool={selectedTool} 
+            setSelectedTool={setSelectedTool}
             beatDisplay={beatDisplay}
-            onMousePositionChange={setMousePosition}
+            setBeatDisplay={setBeatDisplay}
+            onUndo={undo}
+            onRedo={redo}
+            canUndo={historyIndex > 0}
+            canRedo={historyIndex < history.length - 1}
+            onCopy={copySelected}
+            onCut={cutSelected}
+            onPaste={() => {
+              if (mousePosition) {
+                pasteAtPosition(mousePosition.beat, mousePosition.lane);
+              }
+            }}
+            onDelete={deleteSelected}
+            onMirror={mirrorSelected}
+            canCopy={selectedNotes.length > 0}
+            canPaste={clipboard.length > 0}
             scale={scale}
+            onZoomIn={() => setScale(scale * 1.2)}
+            onZoomOut={() => setScale(scale / 1.2)}
+            isCombinationMode={isCombinationMode}
+            setCombinationMode={setIsCombinationMode}
           />
         </div>
-        {/* 状态栏 */}
-        <StatusBar mousePosition={mousePosition} />
+        
+        {/* 中间谱面画布区域 */}
+        <div className="flex-1">
+          <div className="h-full overflow-auto">
+            <ChartCanvas 
+              notes={notes} 
+              setNotes={handleNotesChange} 
+              selectedTool={selectedTool}
+              selectedNotes={selectedNotes}
+              setSelectedNotes={setSelectedNotes}
+              beatDisplay={beatDisplay}
+              onMousePositionChange={setMousePosition}
+              scale={scale}
+              isCombinationMode={isCombinationMode}
+            />
+          </div>
+        </div>
+        
+        {/* 右侧音符信息面板 */}
+        <div className="w-80 bg-gray-50 border-l">
+          <NoteInfoPanel 
+            selectedNotes={selectedNotes}
+            notes={notes}
+            onNotesChange={handleNotesChange}
+          />
+        </div>
       </div>
-      
-      {/* 右侧音符信息面板 */}
-      <div className="w-80 bg-gray-50 border-l">
-        <NoteInfoPanel 
-          selectedNotes={selectedNotes}
-          notes={notes}
-          onNotesChange={handleNotesChange}
-        />
-      </div>
+
+      {/* 状态栏 - 使用fixed定位，完全独立于主布局 */}
+      <StatusBar mousePosition={mousePosition} selectedNotes={selectedNotes} notes={notes} />
     </div>
   );
 }
