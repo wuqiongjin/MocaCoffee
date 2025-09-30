@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { ChartNote } from "../notes/Charts";
 
 interface ChartCanvasProps {
@@ -37,6 +37,52 @@ export default function ChartCanvas({
   const [selectionBox, setSelectionBox] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const canvasRef = useRef<SVGSVGElement>(null);
 
+  // 设置初始滚动位置为底部
+  useEffect(() => {
+    const scrollToBottom = () => {
+      // 查找滚动容器 - 应该是包含overflow: auto的父元素
+      let scrollContainer = canvasRef.current?.parentElement;
+
+      // 向上查找具有overflow: auto样式的元素
+      while (scrollContainer && scrollContainer !== document.body) {
+        const computedStyle = window.getComputedStyle(scrollContainer);
+        if (computedStyle.overflow === 'auto' || computedStyle.overflowY === 'auto') {
+          break;
+        }
+        scrollContainer = scrollContainer.parentElement;
+      }
+
+      if (scrollContainer) {
+        // 强制滚动到底部
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+        console.log('Scrolled to bottom:', scrollContainer.scrollTop, scrollContainer.scrollHeight);
+      } else {
+        console.log('Scroll container not found');
+      }
+    };
+
+    // 使用 requestAnimationFrame 确保在下一帧渲染后滚动
+    const rafId = requestAnimationFrame(() => {
+      scrollToBottom();
+    });
+
+    // 延迟再次尝试，确保DOM完全渲染
+    const timeoutId = setTimeout(scrollToBottom, 100);
+
+    // 再次延迟，确保所有内容都已渲染
+    const timeoutId2 = setTimeout(scrollToBottom, 500);
+
+    // 最后尝试，使用更长的延迟确保内容完全加载
+    const timeoutId3 = setTimeout(scrollToBottom, 1000);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearTimeout(timeoutId);
+      clearTimeout(timeoutId2);
+      clearTimeout(timeoutId3);
+    };
+  }, []);
+
   // 计算当前BPM和缩放比例
   const getBpmAtBeat = (beat: number) => {
     let currentBpm = 120; // 默认BPM
@@ -61,7 +107,7 @@ export default function ChartCanvas({
     return (BEAT_HEIGHT * 120) / bpm;
   };
 
-  // 计算音符的Y位置
+  // 计算音符的Y位置 - 自下往上布局
   const getNoteY = (beat: number, subBeat: number = 0) => {
     let y = 0;
     const integerBeat = Math.floor(beat);
@@ -84,7 +130,9 @@ export default function ChartCanvas({
       y += (subBeat * currentBeatHeight) / beatDisplay;
     }
 
-    return y;
+    // 反转Y坐标，让beat 0在底部
+    const totalHeight = BEATS * BEAT_HEIGHT * scale;
+    return totalHeight - y;
   };
 
   const handleClick = (beat: number, lane: number, subBeat: number = 0) => {
@@ -189,10 +237,26 @@ export default function ChartCanvas({
       // 计算鼠标位置对应的轨道和节拍
       const lane = Math.floor(x / (LANE_WIDTH * scale));
 
-      // 计算精确的beat位置（支持小数）
+      // 计算精确的beat位置（支持小数）- 适应自下往上的布局
       const relativeY = y - offsetY;
-      const beatHeight = BEAT_HEIGHT * scale;
-      const beat = relativeY / beatHeight;
+      const totalHeight = BEATS * BEAT_HEIGHT * scale;
+      const reversedY = totalHeight - relativeY; // 反转Y坐标
+
+      // 使用与getNoteY相同的计算方式
+      let beat = 0;
+      let currentY = 0;
+
+      // 遍历所有beat，找到鼠标位置对应的精确beat
+      for (let b = 0; b < BEATS; b++) {
+        const beatHeight = getBeatHeight(b) * scale;
+        if (reversedY >= currentY && reversedY < currentY + beatHeight) {
+          // 在当前beat内，计算精确位置
+          const beatProgress = (reversedY - currentY) / beatHeight;
+          beat = b + beatProgress;
+          break;
+        }
+        currentY += beatHeight;
+      }
 
       if (lane >= 0 && lane < LANES && beat >= 0) {
         // 限制小数位数为16位
@@ -263,20 +327,22 @@ export default function ChartCanvas({
   // 绘制网格线
   const renderGrid = () => {
     const lines = [];
+    const totalHeight = BEATS * BEAT_HEIGHT * scale;
     let currentY = 0;
 
-    // 绘制水平线（节拍线）
+    // 绘制水平线（节拍线）- 自下往上
     for (let beat = 0; beat < BEATS; beat++) {
       const beatHeight = getBeatHeight(beat) * scale;
       const isMainBeat = beat % 4 === 0;
+      const y = totalHeight - currentY; // 反转Y坐标
 
       lines.push(
         <line
           key={`beat-${beat}`}
           x1={0}
-          y1={currentY}
+          y1={y}
           x2={LANES * LANE_WIDTH * scale}
-          y2={currentY}
+          y2={y}
           stroke={isMainBeat ? "#888" : "#ccc"}
           strokeWidth={isMainBeat ? 2 : 1}
         />
@@ -284,7 +350,7 @@ export default function ChartCanvas({
 
       // 绘制子节拍线
       for (let subBeat = 1; subBeat < beatDisplay; subBeat++) {
-        const subY = currentY + (subBeat * beatHeight) / beatDisplay;
+        const subY = totalHeight - (currentY + (subBeat * beatHeight) / beatDisplay);
         lines.push(
           <line
             key={`subbeat-${beat}-${subBeat}`}
@@ -311,7 +377,7 @@ export default function ChartCanvas({
           x1={x}
           y1={0}
           x2={x}
-          y2={currentY}
+          y2={totalHeight}
           stroke="#aaa"
         />
       );
@@ -406,7 +472,7 @@ export default function ChartCanvas({
                   />
                   <text
                     x={10}
-                    y={y + 15}
+                    y={y - 5}
                     fontSize={14 * scale}
                     fill="red"
                     fontWeight="bold"
@@ -503,6 +569,10 @@ export default function ChartCanvas({
                     const y = e.clientY - rect.top;
                     const relativeY = y - offsetY;
 
+                    // 反转Y坐标以适应自下往上的布局
+                    const totalHeight = BEATS * BEAT_HEIGHT * scale;
+                    const reversedY = totalHeight - relativeY;
+
                     // 使用与getNoteY完全对应的反向计算
                     let beat = 0;
                     let currentY = 0;
@@ -510,9 +580,9 @@ export default function ChartCanvas({
                     // 遍历所有beat，找到鼠标位置对应的精确beat
                     for (let b = 0; b < BEATS; b++) {
                       const beatHeight = getBeatHeight(b) * scale;
-                      if (relativeY >= currentY && relativeY < currentY + beatHeight) {
+                      if (reversedY >= currentY && reversedY < currentY + beatHeight) {
                         // 在当前beat内，计算精确位置
-                        const beatProgress = (relativeY - currentY) / beatHeight;
+                        const beatProgress = (reversedY - currentY) / beatHeight;
                         beat = b + beatProgress;
                         break;
                       }
@@ -520,11 +590,11 @@ export default function ChartCanvas({
                     }
 
                     // 如果鼠标位置超出了所有beat范围，使用最后一个beat
-                    if (beat === 0 && relativeY >= currentY) {
+                    if (beat === 0 && reversedY >= currentY) {
                       beat = BEATS - 1 + 0.999;
                     }
 
-                    console.log('Mouse Y:', relativeY, 'Calculated beat:', beat);
+                    console.log('Mouse Y:', relativeY, 'Reversed Y:', reversedY, 'Calculated beat:', beat);
                     console.log('BEAT_HEIGHT:', BEAT_HEIGHT, 'scale:', scale);
                     console.log('getBeatHeight(0):', getBeatHeight(0));
 

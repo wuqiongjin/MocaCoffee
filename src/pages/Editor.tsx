@@ -162,58 +162,66 @@ export default function Editor({ }: EditorProps) {
   }, [selectedNotes, mousePosition, clipboard, historyIndex, history.length]);
 
   return (
-    <div className="h-screen">
-      {/* 主编辑区域 */}
-      <div className="flex h-full">
-        {/* 左侧工具栏 */}
-        <div className="w-64 bg-gray-100 border-r">
-          <Toolbar 
-            selectedTool={selectedTool} 
-            setSelectedTool={setSelectedTool}
+    <div style={{ height: '100vh', width: '100vw', display: 'flex' }}>
+      {/* 左侧独立工具栏子窗口 - 固定定位 */}
+      <div style={{ 
+        position: 'fixed', 
+        left: 0, 
+        top: 0, 
+        height: '100%', 
+        width: '256px', 
+        backgroundColor: 'white', 
+        borderRight: '2px solid #d1d5db', 
+        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', 
+        zIndex: 10 
+      }}>
+        <Toolbar 
+          selectedTool={selectedTool} 
+          setSelectedTool={setSelectedTool}
+          beatDisplay={beatDisplay}
+          setBeatDisplay={setBeatDisplay}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={historyIndex > 0}
+          canRedo={historyIndex < history.length - 1}
+          onCopy={copySelected}
+          onCut={cutSelected}
+          onPaste={() => {
+            if (mousePosition) {
+              pasteAtPosition(mousePosition.beat, mousePosition.lane);
+            }
+          }}
+          onDelete={deleteSelected}
+          onMirror={mirrorSelected}
+          canCopy={selectedNotes.length > 0}
+          canPaste={clipboard.length > 0}
+          scale={scale}
+          onZoomIn={() => setScale(scale * 1.2)}
+          onZoomOut={() => setScale(scale / 1.2)}
+          isCombinationMode={isCombinationMode}
+          setCombinationMode={setIsCombinationMode}
+        />
+      </div>
+      
+      {/* 主内容区域 - 为工具栏留出空间 */}
+      <div style={{ flex: 1, marginLeft: '256px', display: 'flex' }}>
+        {/* 中间谱面画布区域 */}
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          <ChartCanvas 
+            notes={notes} 
+            setNotes={handleNotesChange} 
+            selectedTool={selectedTool}
+            selectedNotes={selectedNotes}
+            setSelectedNotes={setSelectedNotes}
             beatDisplay={beatDisplay}
-            setBeatDisplay={setBeatDisplay}
-            onUndo={undo}
-            onRedo={redo}
-            canUndo={historyIndex > 0}
-            canRedo={historyIndex < history.length - 1}
-            onCopy={copySelected}
-            onCut={cutSelected}
-            onPaste={() => {
-              if (mousePosition) {
-                pasteAtPosition(mousePosition.beat, mousePosition.lane);
-              }
-            }}
-            onDelete={deleteSelected}
-            onMirror={mirrorSelected}
-            canCopy={selectedNotes.length > 0}
-            canPaste={clipboard.length > 0}
+            onMousePositionChange={setMousePosition}
             scale={scale}
-            onZoomIn={() => setScale(scale * 1.2)}
-            onZoomOut={() => setScale(scale / 1.2)}
             isCombinationMode={isCombinationMode}
-            setCombinationMode={setIsCombinationMode}
           />
         </div>
         
-        {/* 中间谱面画布区域 */}
-        <div className="flex-1">
-          <div className="h-full overflow-auto">
-            <ChartCanvas 
-              notes={notes} 
-              setNotes={handleNotesChange} 
-              selectedTool={selectedTool}
-              selectedNotes={selectedNotes}
-              setSelectedNotes={setSelectedNotes}
-              beatDisplay={beatDisplay}
-              onMousePositionChange={setMousePosition}
-              scale={scale}
-              isCombinationMode={isCombinationMode}
-            />
-          </div>
-        </div>
-        
         {/* 右侧音符信息面板 */}
-        <div className="w-80 bg-gray-50 border-l">
+        <div style={{ width: '320px', backgroundColor: '#f9fafb', borderLeft: '1px solid #e5e7eb', flexShrink: 0 }}>
           <NoteInfoPanel 
             selectedNotes={selectedNotes}
             notes={notes}
