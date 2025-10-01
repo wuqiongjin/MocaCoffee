@@ -13,8 +13,8 @@ interface ChartCanvasProps {
   isCombinationMode: boolean;
 }
 
-const LANES = 5;   // 五条轨道
-const BEATS = 64;  // 显示 64 小节，可以改
+const LANES = 7;   // 七条轨道
+const BEATS = 64;  // 显示 64 小节，(后续根据音频长度自动计算)
 const BEAT_HEIGHT = 40; // 每个节拍的高度
 const LANE_WIDTH = 100; // 每个轨道的宽度
 
@@ -51,41 +51,28 @@ export default function ChartCanvas({
         }
         scrollContainer = scrollContainer.parentElement;
       }
-
       if (scrollContainer) {
         // 强制滚动到底部
         scrollContainer.scrollTop = scrollContainer.scrollHeight;
-        console.log('Scrolled to bottom:', scrollContainer.scrollTop, scrollContainer.scrollHeight);
-      } else {
-        console.log('Scroll container not found');
       }
     };
 
-    // 使用 requestAnimationFrame 确保在下一帧渲染后滚动
-    const rafId = requestAnimationFrame(() => {
-      scrollToBottom();
-    });
-
-    // 延迟再次尝试，确保DOM完全渲染
+    // 2次延迟尝试，确保DOM完全渲染
+    const rafId = requestAnimationFrame(() => { scrollToBottom(); });
     const timeoutId = setTimeout(scrollToBottom, 100);
-
-    // 再次延迟，确保所有内容都已渲染
     const timeoutId2 = setTimeout(scrollToBottom, 500);
-
-    // 最后尝试，使用更长的延迟确保内容完全加载
-    const timeoutId3 = setTimeout(scrollToBottom, 1000);
-
+    // const timeoutId3 = setTimeout(scrollToBottom, 1000); // no need to flush
     return () => {
       cancelAnimationFrame(rafId);
       clearTimeout(timeoutId);
       clearTimeout(timeoutId2);
-      clearTimeout(timeoutId3);
+      //clearTimeout(timeoutId3);
     };
   }, []);
 
   // 计算当前BPM和缩放比例
   const getBpmAtBeat = (beat: number) => {
-    let currentBpm = 120; // 默认BPM
+    let currentBpm = 120; // 初始默认BPM
     let lastBpmBeat = 0;
 
     // 找到当前节拍之前最近的BPM标记
@@ -132,7 +119,8 @@ export default function ChartCanvas({
 
     // 反转Y坐标，让beat 0在底部
     const totalHeight = BEATS * BEAT_HEIGHT * scale;
-    return totalHeight - y;
+    const finalY = totalHeight - y;
+    return finalY;
   };
 
   const handleClick = (beat: number, lane: number, subBeat: number = 0) => {
@@ -143,14 +131,15 @@ export default function ChartCanvas({
       );
       if (noteIndex !== -1) {
         if (isCombinationMode) {
-          // 组合状态下支持多选
+          // 组合模式下，如果音符已选中，则取消选中；否则选中
           if (selectedNotes.includes(noteIndex)) {
             setSelectedNotes(selectedNotes.filter(i => i !== noteIndex));
           } else {
+            // 否则选中该音符
             setSelectedNotes([...selectedNotes, noteIndex]);
           }
         } else {
-          // 普通状态下单选
+          // 非组合模式下，直接选中该音符
           setSelectedNotes([noteIndex]);
         }
       } else if (!isCombinationMode) {
@@ -295,7 +284,7 @@ export default function ChartCanvas({
       notes.forEach((note, index) => {
         if (note.type === "Single") {
           const noteX = note.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2; // 音符中心X位置
-          const noteY = getNoteY(note.beat, note.subBeat || 0); // 使用正确的Y位置计算
+          const noteY = getNoteY(note.beat, note.subBeat || 0); // 音符中心Y位置
 
           if (noteX >= minX && noteX <= maxX && noteY >= minY && noteY <= maxY) {
             selectedIndices.push(index);
@@ -324,13 +313,13 @@ export default function ChartCanvas({
     }
   };
 
-  // 绘制网格线
+  // 渲染网格和音符逻辑
   const renderGrid = () => {
     const lines = [];
     const totalHeight = BEATS * BEAT_HEIGHT * scale;
     let currentY = 0;
 
-    // 绘制水平线（节拍线）- 自下往上
+    // 绘制水平线（节拍线）- 自下往上绘制
     for (let beat = 0; beat < BEATS; beat++) {
       const beatHeight = getBeatHeight(beat) * scale;
       const isMainBeat = beat % 4 === 0;
@@ -386,256 +375,266 @@ export default function ChartCanvas({
     return lines;
   };
 
+  // 重要：共享的总高度与宽度（用于左侧定位与SVG高度一致）
+  const totalHeight = BEATS * BEAT_HEIGHT * scale;
+  const svgWidth = LANES * LANE_WIDTH * scale;
+
   // 收集所有BPM标记用于在画布外部显示
   const bpmMarks = notes.filter(note => note.type === "BPM");
 
   return (
     <div className="w-full h-full overflow-auto">
-      <div className="flex items-start p-4 min-h-full">
-        {/* 左侧BPM数字显示区域 */}
+      {/* 用一个统一的内边距容器（可保留或去掉 padding，根据你的UI需求）
+          关键：下面的 innerWrapper 会应用 translateY(offsetY)，使 BPM 列和 SVG 同步移动 */}
+      <div className="p-4">
         <div
-          className="flex-shrink-0 mr-4 relative"
+          // 这个 wrapper 包含左侧 BPM 列和 SVG 画布，translateY 只应用到这里
           style={{
-            width: '80px',
-            transform: `translateY(${offsetY}px)`
+            display: 'flex',
+            alignItems: 'flex-start',
+            transform: `translateY(${offsetY}px)`,
+            minHeight: totalHeight
           }}
         >
-          {bpmMarks.map((note, idx) => {
-            const y = getNoteY(note.beat);
-            return (
-              <div
-                key={`bpm-left-${idx}`}
-                className="absolute text-red-600 font-bold text-sm"
-                style={{
-                  left: '10px',
-                  top: `${y}px`,
-                  transform: 'translateY(-50%)'
-                }}
-              >
-                BPM {note.bpm}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* 网格画布 */}
-        <div className="relative">
-          <svg
-            ref={canvasRef}
-            className="border bg-white"
-            width={LANES * LANE_WIDTH * scale}
-            height={BEATS * BEAT_HEIGHT * scale}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
+          {/* 左侧 BPM 数字列（在画布外部） */}
+          <div
             style={{
-              cursor: dragging ? "grabbing" : (isSelecting ? "crosshair" : "default"),
-              transform: `translateY(${offsetY}px)`
+              width: 80,
+              flexShrink: 0,
+              position: 'relative',
+              // pointerEvents: 'none' 确保不会拦截鼠标事件（比如放置音符）
+              pointerEvents: 'none',
+              height: totalHeight
             }}
           >
-            {/* 绘制网格 */}
-            {renderGrid()}
-
-            {/* 音符 */}
-            {notes.map((note, idx) => {
-              const isSelected = selectedNotes.includes(idx);
-
-              if (note.type === "Single") {
-                const subBeat = note.subBeat || 0;
-                const y = getNoteY(note.beat, subBeat);
-                const x = note.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
-
+            {/* 内层 relative 容器用于让每个 BPM 数字用 absolute top: ypx 定位 */}
+            <div style={{ position: 'relative', height: totalHeight }}>
+              {bpmMarks.map((note, idx) => {
+                const rawY = getNoteY(note.beat);
+                // 保证在容器范围内（防止越界）
+                const y = Math.max(0, Math.min(totalHeight, rawY));
                 return (
-                  <g key={idx}>
-                    {/* 加粗线段表示音符 */}
-                    <line
-                      x1={x - 20 * scale}
-                      y1={y}
-                      x2={x + 20 * scale}
-                      y2={y}
-                      stroke={note.flick ? "red" : "blue"}
-                      strokeWidth={8 * scale}
-                      strokeLinecap="round"
-                      onClick={() => handleClick(note.beat, note.lane, subBeat)}
-                    />
-                    {/* 选中状态的高亮 */}
-                    {isSelected && (
+                  <div
+                    key={`bpm-left-${idx}`}
+                    style={{
+                      position: 'absolute',
+                      left: 10,                 // 保证在画布外（横坐标不在画布内）
+                      top: `${y}px`,
+                      transform: 'translateY(-50%)',
+                      fontWeight: 700,
+                      fontSize: 12,
+                      color: '#c00',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    BPM {note.bpm}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 画布区域 */}
+          <div style={{ position: 'relative' }}>
+            <svg
+              ref={canvasRef}
+              className="border bg-white"
+              width={svgWidth}
+              height={totalHeight}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              style={{
+                cursor: dragging ? "grabbing" : (isSelecting ? "crosshair" : "default"),
+                display: 'block' // 避免 inline svg 造成 baseline 问题
+              }}
+            >
+              {/* 网格 */}
+              {renderGrid()}
+
+              {/* 音符 & BPM 线（注意：BPM 线保留，但不在 SVG 内画数字） */}
+              {notes.map((note, idx) => {
+                const isSelected = selectedNotes.includes(idx);
+
+                if (note.type === "Single") {
+                  const subBeat = note.subBeat || 0;
+                  const y = getNoteY(note.beat, subBeat);
+                  const x = note.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
+
+                  return (
+                    <g key={idx}>
                       <line
-                        x1={x - 25 * scale}
+                        x1={x - 20 * scale}
                         y1={y}
-                        x2={x + 25 * scale}
+                        x2={x + 20 * scale}
                         y2={y}
-                        stroke="yellow"
-                        strokeWidth={12 * scale}
+                        stroke={note.flick ? "red" : "blue"}
+                        strokeWidth={8 * scale}
                         strokeLinecap="round"
-                        opacity={0.7}
+                        onClick={() => handleClick(note.beat, note.lane, subBeat)}
                       />
-                    )}
-                    {/* 滑键标记 */}
-                    {note.flick && (
-                      <text
-                        x={x}
-                        y={y - 15 * scale}
-                        fontSize={10 * scale}
-                        fill="red"
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fontWeight="bold"
-                      >
-                        F
-                      </text>
-                    )}
-                  </g>
-                );
-              } else if (note.type === "BPM") {
-                const y = getNoteY(note.beat);
-                return (
-                  <g key={idx}>
-                    <line
-                      x1={0}
-                      y1={y}
-                      x2={LANES * LANE_WIDTH * scale}
-                      y2={y}
-                      stroke="red"
-                      strokeWidth={3}
-                      strokeDasharray="5,5"
-                    />
-                  </g>
-                );
-              } else if (note.type === "Slide") {
-                const [p1, p2] = note.connections;
-                const subBeat1 = p1.subBeat || 0;
-                const subBeat2 = p2.subBeat || 0;
-                const y1 = getNoteY(p1.beat, subBeat1);
-                const y2 = getNoteY(p2.beat, subBeat2);
-                const x1 = p1.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
-                const x2 = p2.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
+                      {isSelected && (
+                        <line
+                          x1={x - 25 * scale}
+                          y1={y}
+                          x2={x + 25 * scale}
+                          y2={y}
+                          stroke="yellow"
+                          strokeWidth={12 * scale}
+                          strokeLinecap="round"
+                          opacity={0.7}
+                        />
+                      )}
+                      {/* 滑键标记 */}
+                      {note.flick && (
+                        <text
+                          x={x}
+                          y={y - 15 * scale}
+                          fontSize={`${10 * scale}`}
+                          fill="red"
+                          textAnchor="middle"
+                          dominantBaseline="middle"
+                          fontWeight="bold"
+                        >
+                          F
+                        </text>
+                      )}
+                    </g>
+                  );
+                } else if (note.type === "BPM") {
+                  const y = getNoteY(note.beat);
+                  return (
+                    <g key={idx}>
+                      <line
+                        x1={0}
+                        y1={y}
+                        x2={svgWidth}
+                        y2={y}
+                        stroke="red"
+                        strokeWidth={3}
+                        strokeDasharray="5,5"
+                      />
+                      {/* 注意：不在 SVG 内绘制 BPM 数字 */}
+                    </g>
+                  );
+                } else if (note.type === "Slide") {
+                  const [p1, p2] = note.connections;
+                  const subBeat1 = p1.subBeat || 0;
+                  const subBeat2 = p2.subBeat || 0;
+                  const y1 = getNoteY(p1.beat, subBeat1);
+                  const y2 = getNoteY(p2.beat, subBeat2);
+                  const x1 = p1.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
+                  const x2 = p2.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
+
+                  return (
+                    <g key={idx}>
+                      <line
+                        x1={x1}
+                        y1={y1}
+                        x2={x2}
+                        y2={y2}
+                        stroke="purple"
+                        strokeWidth={6 * scale}
+                        strokeLinecap="round"
+                      />
+                      {/* 滑条端点 */}
+                      <circle cx={x1} cy={y1} r={8 * scale} fill="purple" />
+                      <circle cx={x2} cy={y2} r={8 * scale} fill="purple" />
+                    </g>
+                  );
+                }
+                return null;
+              })}
+
+              {/* 滑条缓冲区显示: slideBuffer、selectionBox、点击放置层 */}
+              {slideBuffer.map((point, idx) => {
+                const subBeat = point.subBeat || 0;
+                const y = getNoteY(point.beat, subBeat);
+                const x = point.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
 
                 return (
-                  <g key={idx}>
-                    <line
-                      x1={x1}
-                      y1={y1}
-                      x2={x2}
-                      y2={y2}
-                      stroke="purple"
-                      strokeWidth={6 * scale}
-                      strokeLinecap="round"
-                    />
-                    {/* 滑条端点 */}
-                    <circle
-                      cx={x1}
-                      cy={y1}
-                      r={8 * scale}
-                      fill="purple"
-                    />
-                    <circle
-                      cx={x2}
-                      cy={y2}
-                      r={8 * scale}
-                      fill="purple"
-                    />
-                  </g>
+                  <circle
+                    key={`buffer-${idx}`}
+                    cx={x}
+                    cy={y}
+                    r={10 * scale}
+                    fill="orange"
+                    fillOpacity={0.7}
+                  />
                 );
-              }
-              return null;
-            })}
+              })}
 
-            {/* 滑条缓冲区显示 */}
-            {slideBuffer.map((point, idx) => {
-              const subBeat = point.subBeat || 0;
-              const y = getNoteY(point.beat, subBeat);
-              const x = point.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
-
-              return (
-                <circle
-                  key={`buffer-${idx}`}
-                  cx={x}
-                  cy={y}
-                  r={10 * scale}
-                  fill="orange"
-                  fillOpacity={0.7}
-                />
-              );
-            })}
-
-            {/* 选择框 */}
-            {selectionBox && (
-              <rect
-                x={Math.min(selectionBox.x1, selectionBox.x2)}
-                y={Math.min(selectionBox.y1, selectionBox.y2)}
-                width={Math.abs(selectionBox.x2 - selectionBox.x1)}
-                height={Math.abs(selectionBox.y2 - selectionBox.y1)}
-                fill="rgba(0, 123, 255, 0.2)"
-                stroke="rgba(0, 123, 255, 0.8)"
-                strokeWidth={1}
-                strokeDasharray="5,5"
-              />
-            )}
-
-            {/* 点击放置层 - 支持精确beat位置 */}
-            {Array.from({ length: LANES }).map((_, lane) => {
-              const laneX = lane * LANE_WIDTH * scale;
-              return (
+              {/* 选择框 */}
+              {selectionBox && (
                 <rect
-                  key={`lane-${lane}`}
-                  x={laneX}
-                  y={0}
-                  width={LANE_WIDTH * scale}
-                  height={BEATS * BEAT_HEIGHT * scale}
-                  fill="transparent"
-                  onClick={(e) => {
-                    const rect = canvasRef.current?.getBoundingClientRect();
-                    if (rect) {
-                      const y = e.clientY - rect.top;
-                      const relativeY = y - offsetY;
-
-                      // 反转Y坐标以适应自下往上的布局
-                      const totalHeight = BEATS * BEAT_HEIGHT * scale;
-                      const reversedY = totalHeight - relativeY;
-
-                      // 使用与getNoteY完全对应的反向计算
-                      let beat = 0;
-                      let currentY = 0;
-
-                      // 遍历所有beat，找到鼠标位置对应的精确beat
-                      for (let b = 0; b < BEATS; b++) {
-                        const beatHeight = getBeatHeight(b) * scale;
-                        if (reversedY >= currentY && reversedY < currentY + beatHeight) {
-                          // 在当前beat内，计算精确位置
-                          const beatProgress = (reversedY - currentY) / beatHeight;
-                          beat = b + beatProgress;
-                          break;
-                        }
-                        currentY += beatHeight;
-                      }
-
-                      // 如果鼠标位置超出了所有beat范围，使用最后一个beat
-                      if (beat === 0 && reversedY >= currentY) {
-                        beat = BEATS - 1 + 0.999;
-                      }
-
-                      console.log('Mouse Y:', relativeY, 'Reversed Y:', reversedY, 'Calculated beat:', beat);
-                      console.log('BEAT_HEIGHT:', BEAT_HEIGHT, 'scale:', scale);
-                      console.log('getBeatHeight(0):', getBeatHeight(0));
-
-                      // 验证计算是否正确
-                      const testY = getNoteY(beat);
-                      console.log('Test Y for beat', beat, ':', testY);
-
-                      // 计算精确的beat位置（基于当前节拍显示）
-                      // 找到最近的子节拍位置
-                      const subBeatPosition = beat * beatDisplay;
-                      const nearestSubBeat = Math.round(subBeatPosition);
-                      const preciseBeat = nearestSubBeat / beatDisplay;
-                      console.log('SubBeat position:', subBeatPosition, 'Nearest subBeat:', nearestSubBeat, 'Precise beat:', preciseBeat);
-                      handleClick(preciseBeat, lane);
-                    }
-                  }}
+                  x={Math.min(selectionBox.x1, selectionBox.x2)}
+                  y={Math.min(selectionBox.y1, selectionBox.y2)}
+                  width={Math.abs(selectionBox.x2 - selectionBox.x1)}
+                  height={Math.abs(selectionBox.y2 - selectionBox.y1)}
+                  fill="rgba(0, 123, 255, 0.2)"
+                  stroke="rgba(0, 123, 255, 0.8)"
+                  strokeWidth={1}
+                  strokeDasharray="5,5"
                 />
-              );
-            })}
-          </svg>
+              )}
+
+              {/* 点击放置层 - 支持精确beat位置 */}
+              {Array.from({ length: LANES }).map((_, lane) => {
+                const laneX = lane * LANE_WIDTH * scale;
+                return (
+                  <rect
+                    key={`lane-${lane}`}
+                    x={laneX}
+                    y={0}
+                    width={LANE_WIDTH * scale}
+                    height={totalHeight}
+                    fill="transparent"
+                    onClick={(e) => {
+                      const rect = canvasRef.current?.getBoundingClientRect();
+                      if (rect) {
+                        const y = e.clientY - rect.top;
+                        const relativeY = y - offsetY;
+                        const totalHeightInner = totalHeight;
+                        const reversedY = totalHeightInner - relativeY;
+
+                        // 使用与getNoteY完全对应的反向计算
+                        let beat = 0;
+                        let currentY = 0;
+
+                        // 遍历所有beat，找到鼠标位置对应的精确beat
+                        for (let b = 0; b < BEATS; b++) {
+                          const beatHeight = getBeatHeight(b) * scale;
+                          if (reversedY >= currentY && reversedY < currentY + beatHeight) {
+                            // 在当前beat内，计算精确位置
+                            const beatProgress = (reversedY - currentY) / beatHeight;
+                            beat = b + beatProgress;
+                            break;
+                          }
+                          currentY += beatHeight;
+                        }
+
+                        // 如果鼠标位置超出了所有beat范围，使用最后一个beat
+                        if (beat === 0 && reversedY >= currentY) {
+                          beat = BEATS - 1 + 0.999;
+                        }
+
+                        // 验证计算是否正确
+                        const testY = getNoteY(beat);
+                        console.log('Test Y for beat', beat, ':', testY);                        
+
+                        // 计算精确的beat位置（基于当前节拍显示）
+                        // 找到最近的子节拍位置
+                        const subBeatPosition = beat * beatDisplay;
+                        const nearestSubBeat = Math.round(subBeatPosition);
+                        const preciseBeat = nearestSubBeat / beatDisplay;
+                        handleClick(preciseBeat, lane);
+                      }
+                    }}
+                  />
+                );
+              })}
+            </svg>
+          </div>
         </div>
       </div>
     </div>
