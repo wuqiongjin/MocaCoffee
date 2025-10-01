@@ -136,33 +136,6 @@ export default function ChartCanvas({
   };
 
   // ---------------------------
-  // 兼容旧函数：获取某个beat处的BPM及该BPM开始的beat
-  // ---------------------------
-  const getBpmAtBeat = (beat: number) => {
-    const bpmEvents = getSortedBpmEvents();
-    // 找到最后一个 beat <= 参数 beat
-    let chosen = bpmEvents[0];
-    for (const ev of bpmEvents) {
-      if (ev.beat <= beat) {
-        chosen = ev;
-      } else {
-        break;
-      }
-    }
-    return { bpm: chosen.bpm, startBeat: chosen.beat };
-  };
-
-  // ---------------------------
-  // 旧的 getBeatHeight(beat) 被替换为：返回该 beat（精确）处的 **单位 beat 的像素高度**
-  // 即该 beat 所在段的 per-beat-height（不包括 scale 因为已经乘过）
-  // 但是我们在大部分地方不再单独调用它计算累计高度，而是使用 beatToOffset
-  // ---------------------------
-  const getBeatHeight = (beat: number) => {
-    const { bpm } = getBpmAtBeat(beat);
-    return (BEAT_HEIGHT * 120) / bpm;
-  };
-
-  // ---------------------------
   // 计算音符的Y位置 - 自下往上布局
   // 使用 beatToOffset 获得从 0 到该 beat 的累计高度，再反转到 SVG 坐标
   // ---------------------------
@@ -212,8 +185,14 @@ export default function ChartCanvas({
       clearTimeout(timeoutId);
       clearTimeout(timeoutId2);
     };
-    // 监听 notes 的变化（比如 BPM 改变）和 scale
-  }, [scale, notes]);
+    // 只在组件首次挂载时执行初始滚动，不监听 notes 变化
+  }, []);
+
+  // 单独监听 scale 变化，只在缩放时重新计算布局但不强制滚动
+  useEffect(() => {
+    // 当 scale 变化时，只重新渲染，不强制滚动到初始位置
+    // 这样可以保持用户当前的滚动位置
+  }, [scale]);
 
   const handleClick = (beat: number, lane: number, subBeat: number = 0) => {
     if (selectedTool === "mouse") {
