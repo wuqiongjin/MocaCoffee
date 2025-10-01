@@ -15,7 +15,7 @@ interface ChartCanvasProps {
 
 const LANES = 7;   // 七条轨道
 const BEATS = 64;  // 显示 64 小节，(后续根据音频长度自动计算)
-const BEAT_HEIGHT = 120; // 每个节拍的高度
+const BEAT_HEIGHT = 120; // 每个节拍的高度（基准，当 bpm=120 时为 BEAT_HEIGHT）
 const LANE_WIDTH = 40; // 每个轨道的宽度
 
 export default function ChartCanvas({
@@ -37,13 +37,153 @@ export default function ChartCanvas({
   const [selectionBox, setSelectionBox] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const canvasRef = useRef<SVGSVGElement>(null);
 
-  // 设置初始滚动位置，显示4-5个beat的高度
+  // ---------------------------
+  // Helper: 获取按时间升序的 BPM 事件数组
+  // 每个元素: { beat: number, bpm: number }
+  // 保证至少包含 beat=0 的默认事件（如果用户没有设置）
+  // ---------------------------
+  const getSortedBpmEvents = () => {
+    const bpmEvents: { beat: number; bpm: number }[] = [];
+    for (const note of notes) {
+      if (note.type === "BPM") {
+        // Type assertion: note has BPM and beat fields
+        bpmEvents.push({ beat: note.beat, bpm: (note as any).bpm });
+      }
+    }
+    // sort ascending by beat
+    bpmEvents.sort((a, b) => a.beat - b.beat);
+
+    // 如果第一个事件不是在 beat 0，则插入默认初始 BPM（120）
+    if (bpmEvents.length === 0 || bpmEvents[0].beat > 0) {
+      bpmEvents.unshift({ beat: 0, bpm: 120 });
+    } else {
+      // 如果存在 beat 0 的事件，确保它是第一个（sort 已确保），否则也保留
+    }
+
+    return bpmEvents;
+  };
+
+  // ---------------------------
+  // 将任意 beat（可以是小数）转换为从 beat 0 到该 beat 的累计像素高度（向上累加）
+  // 依据每个 BPM 段：每一段的每个 beat 的像素高度 = BEAT_HEIGHT * (120 / bpm)
+  // 最后乘以 scale。
+  // ---------------------------
+  const beatToOffset = (beat: number) => {
+    const bpmEvents = getSortedBpmEvents();
+    let offset = 0;
+    for (let i = 0; i < bpmEvents.length; i++) {
+      const cur = bpmEvents[i];
+      const next = bpmEvents[i + 1];
+      const segmentStart = cur.beat;
+      const segmentEnd = next ? next.beat : Infinity;
+
+      if (beat <= segmentStart) {
+        // 目标beat位于此事件之前，结束
+        break;
+      }
+
+      const segFrom = segmentStart;
+      const segTo = Math.min(segmentEnd, beat);
+      if (segTo > segFrom) {
+        const lengthInBeats = segTo - segFrom;
+        const perBeatHeight = (BEAT_HEIGHT * 120) / cur.bpm;
+        offset += lengthInBeats * perBeatHeight * scale;
+      }
+
+      if (segmentEnd >= beat) {
+        // 已覆盖到目标 beat，结束
+        break;
+      }
+    }
+    return offset;
+  };
+
+  // ---------------------------
+  // 将从0开始的累计偏移（像素）反解为精确 beat（用于鼠标拾取）
+  // 这里 totalHeight 是 beatToOffset(BEATS)
+  // offset 为从 0 到目标 beat 的像素长度
+  // ---------------------------
+  const offsetToBeat = (offset: number) => {
+    const bpmEvents = getSortedBpmEvents();
+    let remaining = offset;
+    for (let i = 0; i < bpmEvents.length; i++) {
+      const cur = bpmEvents[i];
+      const next = bpmEvents[i + 1];
+      const segStart = cur.beat;
+      const segEnd = next ? next.beat : Infinity;
+      const segLenBeats = segEnd - segStart;
+      const perBeatHeight = (BEAT_HEIGHT * 120) / cur.bpm * scale;
+
+      // if segEnd is Infinity, treat large number but we will hit remaining earlier
+      if (!isFinite(segEnd)) {
+        // remaining is within this infinite last segment
+        const beatOffset = remaining / perBeatHeight;
+        return segStart + beatOffset;
+      }
+
+      const segHeight = segLenBeats * perBeatHeight;
+      if (remaining <= segHeight) {
+        // inside this segment
+        const beatOffset = remaining / perBeatHeight;
+        return segStart + beatOffset;
+      } else {
+        remaining -= segHeight;
+      }
+    }
+
+    // 如果超出所有段，返回 BEATS（或更大），但限制为 BEATS
+    return BEATS;
+  };
+
+  // ---------------------------
+  // 兼容旧函数：获取某个beat处的BPM及该BPM开始的beat
+  // ---------------------------
+  const getBpmAtBeat = (beat: number) => {
+    const bpmEvents = getSortedBpmEvents();
+    // 找到最后一个 beat <= 参数 beat
+    let chosen = bpmEvents[0];
+    for (const ev of bpmEvents) {
+      if (ev.beat <= beat) {
+        chosen = ev;
+      } else {
+        break;
+      }
+    }
+    return { bpm: chosen.bpm, startBeat: chosen.beat };
+  };
+
+  // ---------------------------
+  // 旧的 getBeatHeight(beat) 被替换为：返回该 beat（精确）处的 **单位 beat 的像素高度**
+  // 即该 beat 所在段的 per-beat-height（不包括 scale 因为已经乘过）
+  // 但是我们在大部分地方不再单独调用它计算累计高度，而是使用 beatToOffset
+  // ---------------------------
+  const getBeatHeight = (beat: number) => {
+    const { bpm } = getBpmAtBeat(beat);
+    return (BEAT_HEIGHT * 120) / bpm;
+  };
+
+  // ---------------------------
+  // 计算音符的Y位置 - 自下往上布局
+  // 使用 beatToOffset 获得从 0 到该 beat 的累计高度，再反转到 SVG 坐标
+  // ---------------------------
+  const getNoteY = (beat: number, subBeat: number = 0) => {
+    // 如果有 subBeat（0..beatDisplay-1），我们精确计算 offset 到 beat + subBeat/beatDisplay
+    const preciseBeat = beat + (subBeat > 0 ? subBeat / beatDisplay : 0);
+    const offsetFromZero = beatToOffset(preciseBeat);
+
+    const totalOffset = beatToOffset(BEATS); // 总高度
+    const finalY = totalOffset - offsetFromZero;
+    return finalY;
+  };
+
+  // ---------------------------
+  // 初始滚动位置（显示 4.5 个 beat）
+  // 这里 totalHeight 需要用 beatToOffset(BEATS)
+  // ---------------------------
   useEffect(() => {
     const scrollToInitialPosition = () => {
-      // 查找滚动容器 - 应该是包含overflow: auto的父元素
       let scrollContainer = canvasRef.current?.parentElement;
 
-      // 向上查找具有overflow: auto样式的元素
       while (scrollContainer && scrollContainer !== document.body) {
         const computedStyle = window.getComputedStyle(scrollContainer);
         if (computedStyle.overflow === 'auto' || computedStyle.overflowY === 'auto') {
@@ -52,15 +192,12 @@ export default function ChartCanvas({
         scrollContainer = scrollContainer.parentElement;
       }
       if (scrollContainer) {
-        // 计算4-5个beat的高度
         const beatsToShow = 4.5; // 显示4.5个beat
-        let totalBeatHeight = 0;
-        for (let b = 0; b < beatsToShow; b++) {
-          totalBeatHeight += getBeatHeight(b) * scale;
-        }
+        // 计算 0..beatsToShow 的累计高度
+        const totalBeatHeight = beatToOffset(beatsToShow);
 
-        // 滚动到显示4-5个beat的位置（从底部开始）
-        const totalHeight = BEATS * BEAT_HEIGHT * scale;
+        // 总高度使用 BEATS
+        const totalHeight = beatToOffset(BEATS);
         const scrollPosition = totalHeight - totalBeatHeight;
         scrollContainer.scrollTop = Math.max(0, scrollPosition);
       }
@@ -75,60 +212,8 @@ export default function ChartCanvas({
       clearTimeout(timeoutId);
       clearTimeout(timeoutId2);
     };
-  }, [scale]);
-
-  // 计算当前BPM和缩放比例
-  const getBpmAtBeat = (beat: number) => {
-    let currentBpm = 120; // 初始默认BPM
-    let lastBpmBeat = 0;
-
-    // 找到当前节拍之前最近的BPM标记
-    for (const note of notes) {
-      if (note.type === "BPM" && note.beat <= beat) {
-        if (note.beat > lastBpmBeat) {
-          currentBpm = note.bpm;
-          lastBpmBeat = note.beat;
-        }
-      }
-    }
-
-    return { bpm: currentBpm, startBeat: lastBpmBeat };
-  };
-
-  const getBeatHeight = (beat: number) => {
-    const { bpm } = getBpmAtBeat(beat);
-    // BPM越高，节拍高度越小（时间压缩）
-    return (BEAT_HEIGHT * 120) / bpm;
-  };
-
-  // 计算音符的Y位置 - 自下往上布局
-  const getNoteY = (beat: number, subBeat: number = 0) => {
-    let y = 0;
-    const integerBeat = Math.floor(beat);
-    const fractionalBeat = beat - integerBeat;
-
-    // 计算整数beat的Y位置
-    for (let b = 0; b < integerBeat; b++) {
-      y += getBeatHeight(b) * scale;
-    }
-
-    // 加上小数beat的Y位置
-    if (fractionalBeat > 0) {
-      const currentBeatHeight = getBeatHeight(integerBeat) * scale;
-      y += fractionalBeat * currentBeatHeight;
-    }
-
-    // 加上subBeat的Y位置
-    if (subBeat > 0) {
-      const currentBeatHeight = getBeatHeight(integerBeat) * scale;
-      y += (subBeat * currentBeatHeight) / beatDisplay;
-    }
-
-    // 反转Y坐标，让beat 0在底部
-    const totalHeight = BEATS * BEAT_HEIGHT * scale;
-    const finalY = totalHeight - y;
-    return finalY;
-  };
+    // 监听 notes 的变化（比如 BPM 改变）和 scale
+  }, [scale, notes]);
 
   const handleClick = (beat: number, lane: number, subBeat: number = 0) => {
     if (selectedTool === "mouse") {
@@ -171,7 +256,7 @@ export default function ChartCanvas({
         // 限制beat精度为16位小数
         const finalBeat = Math.round(preciseBeat * 10000000000000000) / 10000000000000000;
 
-        // 检查是否已存在相同beat的BPM，如果存在则覆盖
+        // 查找几乎相等的 BPM（考虑浮点） -> 检查是否已存在相同beat的BPM，如果存在则覆盖
         const existingBpmIndex = notes.findIndex(note =>
           note.type === "BPM" && Math.abs(note.beat - finalBeat) < 0.0000000000000001
         );
@@ -233,25 +318,18 @@ export default function ChartCanvas({
       // 计算鼠标位置对应的轨道和节拍
       const lane = Math.floor(x / (LANE_WIDTH * scale));
 
-      // 计算精确的beat位置（支持小数）- 适应自下往上的布局
+      // 反向计算：从鼠标位置计算 beat
       const relativeY = y - offsetY;
-      const totalHeight = BEATS * BEAT_HEIGHT * scale;
-      const reversedY = totalHeight - relativeY; // 反转Y坐标
-
-      // 使用与getNoteY相同的计算方式
+      const totalHeight = beatToOffset(BEATS);
+      const reversedYFromTop = totalHeight - relativeY; // 这是 offsetFromZero（像素）
       let beat = 0;
-      let currentY = 0;
 
-      // 遍历所有beat，找到鼠标位置对应的精确beat
-      for (let b = 0; b < BEATS; b++) {
-        const beatHeight = getBeatHeight(b) * scale;
-        if (reversedY >= currentY && reversedY < currentY + beatHeight) {
-          // 在当前beat内，计算精确位置
-          const beatProgress = (reversedY - currentY) / beatHeight;
-          beat = b + beatProgress;
-          break;
-        }
-        currentY += beatHeight;
+      if (reversedYFromTop <= 0) {
+        beat = 0;
+      } else if (reversedYFromTop >= totalHeight) {
+        beat = BEATS;
+      } else {
+        beat = offsetToBeat(reversedYFromTop);
       }
 
       if (lane >= 0 && lane < LANES && beat >= 0) {
@@ -320,17 +398,15 @@ export default function ChartCanvas({
     }
   };
 
-  // 渲染网格和音符逻辑
+  // ---------------------------
+  // 渲染网格和音符逻辑（renderGrid 改为使用 beatToOffset）
+  // ---------------------------
   const renderGrid = () => {
     const lines = [];
-    const totalHeight = BEATS * BEAT_HEIGHT * scale;
-    let currentY = 0;
-
+    const totalHeight = beatToOffset(BEATS);
     // 绘制水平线（节拍线）- 自下往上绘制
     for (let beat = 0; beat < BEATS; beat++) {
-      const beatHeight = getBeatHeight(beat) * scale;
-      const y = totalHeight - currentY; // 反转Y坐标
-
+      const y = totalHeight - beatToOffset(beat); // beat 的顶部
       lines.push(
         <line
           key={`beat-${beat}`}
@@ -343,9 +419,10 @@ export default function ChartCanvas({
         />
       );
 
-      // 绘制子节拍线
+      // 绘制子节拍线：对于每个 subBeat 位置直接计算对应的 absolute offset
       for (let subBeat = 1; subBeat < beatDisplay; subBeat++) {
-        const subY = totalHeight - (currentY + (subBeat * beatHeight) / beatDisplay);
+        const preciseBeat = beat + subBeat / beatDisplay;
+        const subY = totalHeight - beatToOffset(preciseBeat);
         lines.push(
           <line
             key={`subbeat-${beat}-${subBeat}`}
@@ -359,8 +436,6 @@ export default function ChartCanvas({
           />
         );
       }
-
-      currentY += beatHeight;
     }
 
     // 绘制垂直线（轨道线）
@@ -382,7 +457,7 @@ export default function ChartCanvas({
   };
 
   // 重要：共享的总高度与宽度（用于左侧定位与SVG高度一致）
-  const totalHeight = BEATS * BEAT_HEIGHT * scale;
+  const totalHeight = beatToOffset(BEATS);
   const svgWidth = LANES * LANE_WIDTH * scale;
 
   // 收集所有BPM标记用于在画布外部显示
@@ -433,7 +508,7 @@ export default function ChartCanvas({
                       whiteSpace: 'nowrap'
                     }}
                   >
-                    BPM {note.bpm}
+                    BPM {(note as any).bpm}
                   </div>
                 );
               })}
@@ -603,33 +678,17 @@ export default function ChartCanvas({
                         const totalHeightInner = totalHeight;
                         const reversedY = totalHeightInner - relativeY;
 
-                        // 使用与getNoteY完全对应的反向计算
+                        // 使用 offsetToBeat 直接反向计算
                         let beat = 0;
-                        let currentY = 0;
-
-                        // 遍历所有beat，找到鼠标位置对应的精确beat
-                        for (let b = 0; b < BEATS; b++) {
-                          const beatHeight = getBeatHeight(b) * scale;
-                          if (reversedY >= currentY && reversedY < currentY + beatHeight) {
-                            // 在当前beat内，计算精确位置
-                            const beatProgress = (reversedY - currentY) / beatHeight;
-                            beat = b + beatProgress;
-                            break;
-                          }
-                          currentY += beatHeight;
+                        if (reversedY <= 0) {
+                          beat = 0;
+                        } else if (reversedY >= totalHeightInner) {
+                          beat = BEATS;
+                        } else {
+                          beat = offsetToBeat(reversedY);
                         }
 
-                        // 如果鼠标位置超出了所有beat范围，使用最后一个beat
-                        if (beat === 0 && reversedY >= currentY) {
-                          beat = BEATS - 1 + 0.999;
-                        }
-
-                        // 验证计算是否正确
-                        const testY = getNoteY(beat);
-                        console.log('Test Y for beat', beat, ':', testY);
-
-                        // 计算精确的beat位置（基于当前节拍显示）
-                        // 找到最近的子节拍位置
+                        // 保持行为兼容：向 nearest subBeat 对齐
                         const subBeatPosition = beat * beatDisplay;
                         const nearestSubBeat = Math.round(subBeatPosition);
                         const preciseBeat = nearestSubBeat / beatDisplay;
