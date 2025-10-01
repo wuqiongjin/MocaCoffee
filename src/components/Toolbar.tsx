@@ -85,7 +85,6 @@ export default function Toolbar({
     <div className="h-full flex flex-col bg-white">
       {/* 工具栏头部 - 子窗口标题栏 */}
       <div className="bg-gray-800 text-white px-4 py-3 border-b-2 border-gray-600 flex items-center justify-between">
-        <h2 className="text-sm font-semibold">工具栏</h2>
         <div className="flex space-x-1">
           <div className="w-3 h-3 bg-red-500 rounded-full"></div>
           <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
@@ -94,10 +93,35 @@ export default function Toolbar({
       </div>
       
       {/* 工具栏内容 - 可滚动 */}
-      <div className="flex-1 p-4 space-y-6 overflow-y-auto bg-gray-50">
+      <div 
+        className="flex-1 p-4 space-y-6 overflow-y-auto bg-gray-50"
+        style={{
+          scrollbarWidth: 'thin',
+          scrollbarColor: '#9ca3af #e5e7eb',
+          height: 'calc(100vh - 60px)'
+        }}
+      >
+      <div style={{
+        height: '32px',
+        backgroundColor: '#374151',
+        color: 'white',
+        fontSize: '12px',
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0 12px',
+        borderBottom: '1px solid #4b5563',
+        flexShrink: 0
+      }}>
+        <div style={{ display: 'flex', gap: '4px', marginRight: '8px' }}>
+          <div style={{ width: '8px', height: '8px', backgroundColor: '#ef4444', borderRadius: '50%' }}></div>
+          <div style={{ width: '8px', height: '8px', backgroundColor: '#eab308', borderRadius: '50%' }}></div>
+          <div style={{ width: '8px', height: '8px', backgroundColor: '#22c55e', borderRadius: '50%' }}></div>
+        </div>
+        {/* 工具栏 */}
+      </div>
       {/* 工具选择 */}
       <div>
-        <h3 className="text-xs font-semibold mb-3 text-gray-600 uppercase tracking-wide">工具</h3>
+        <h3 className="text-xs font-semibold mb-3 text-gray-600 uppercase tracking-wide">基础键型</h3>
         <div className="space-y-1">
           {tools.map((tool) => (
             <button
@@ -278,6 +302,21 @@ export default function Toolbar({
           <button className="flex-1 p-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors" title="暂停">
             <Pause size={16} className="mx-auto" />
           </button>
+        </div>
+      </div>
+
+      {/* 额外内容确保滚动条出现 */}
+      <div>
+        <h3 className="text-xs font-semibold mb-3 text-gray-600 uppercase tracking-wide">设置</h3>
+        <div className="space-y-2">
+          <div className="p-2 bg-white border border-gray-300 rounded-md">
+            <div className="text-sm text-gray-600">自动保存</div>
+            <div className="text-xs text-gray-400">每30秒自动保存</div>
+          </div>
+          <div className="p-2 bg-white border border-gray-300 rounded-md">
+            <div className="text-sm text-gray-600">网格对齐</div>
+            <div className="text-xs text-gray-400">启用网格吸附</div>
+          </div>
         </div>
       </div>
       </div>

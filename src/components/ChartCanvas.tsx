@@ -386,235 +386,257 @@ export default function ChartCanvas({
     return lines;
   };
 
+  // 收集所有BPM标记用于在画布外部显示
+  const bpmMarks = notes.filter(note => note.type === "BPM");
+
   return (
     <div className="w-full h-full overflow-auto">
-      <div className="flex flex-col items-center p-4 min-h-full">
-        {/* 网格画布 */}
-        <svg
-          ref={canvasRef}
-          className="border bg-white"
-          width={LANES * LANE_WIDTH * scale}
-          height={BEATS * BEAT_HEIGHT * scale}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
+      <div className="flex items-start p-4 min-h-full">
+        {/* 左侧BPM数字显示区域 */}
+        <div
+          className="flex-shrink-0 mr-4 relative"
           style={{
-            cursor: dragging ? "grabbing" : (isSelecting ? "crosshair" : "default"),
+            width: '80px',
             transform: `translateY(${offsetY}px)`
           }}
         >
-          {/* 绘制网格 */}
-          {renderGrid()}
-
-          {/* 音符 */}
-          {notes.map((note, idx) => {
-            const isSelected = selectedNotes.includes(idx);
-
-            if (note.type === "Single") {
-              const subBeat = note.subBeat || 0;
-              const y = getNoteY(note.beat, subBeat);
-              const x = note.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
-
-              return (
-                <g key={idx}>
-                  {/* 加粗线段表示音符 */}
-                  <line
-                    x1={x - 20 * scale}
-                    y1={y}
-                    x2={x + 20 * scale}
-                    y2={y}
-                    stroke={note.flick ? "red" : "blue"}
-                    strokeWidth={8 * scale}
-                    strokeLinecap="round"
-                    onClick={() => handleClick(note.beat, note.lane, subBeat)}
-                  />
-                  {/* 选中状态的高亮 */}
-                  {isSelected && (
-                    <line
-                      x1={x - 25 * scale}
-                      y1={y}
-                      x2={x + 25 * scale}
-                      y2={y}
-                      stroke="yellow"
-                      strokeWidth={12 * scale}
-                      strokeLinecap="round"
-                      opacity={0.7}
-                    />
-                  )}
-                  {/* 滑键标记 */}
-                  {note.flick && (
-                    <text
-                      x={x}
-                      y={y - 15 * scale}
-                      fontSize={10 * scale}
-                      fill="red"
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      fontWeight="bold"
-                    >
-                      F
-                    </text>
-                  )}
-                </g>
-              );
-            } else if (note.type === "BPM") {
-              const y = getNoteY(note.beat);
-              return (
-                <g key={idx}>
-                  <line
-                    x1={0}
-                    y1={y}
-                    x2={LANES * LANE_WIDTH * scale}
-                    y2={y}
-                    stroke="red"
-                    strokeWidth={3}
-                    strokeDasharray="5,5"
-                  />
-                  <text
-                    x={10}
-                    y={y - 5}
-                    fontSize={14 * scale}
-                    fill="red"
-                    fontWeight="bold"
-                  >
-                    BPM {note.bpm}
-                  </text>
-                </g>
-              );
-            } else if (note.type === "Slide") {
-              const [p1, p2] = note.connections;
-              const subBeat1 = p1.subBeat || 0;
-              const subBeat2 = p2.subBeat || 0;
-              const y1 = getNoteY(p1.beat, subBeat1);
-              const y2 = getNoteY(p2.beat, subBeat2);
-              const x1 = p1.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
-              const x2 = p2.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
-
-              return (
-                <g key={idx}>
-                  <line
-                    x1={x1}
-                    y1={y1}
-                    x2={x2}
-                    y2={y2}
-                    stroke="purple"
-                    strokeWidth={6 * scale}
-                    strokeLinecap="round"
-                  />
-                  {/* 滑条端点 */}
-                  <circle
-                    cx={x1}
-                    cy={y1}
-                    r={8 * scale}
-                    fill="purple"
-                  />
-                  <circle
-                    cx={x2}
-                    cy={y2}
-                    r={8 * scale}
-                    fill="purple"
-                  />
-                </g>
-              );
-            }
-            return null;
-          })}
-
-          {/* 滑条缓冲区显示 */}
-          {slideBuffer.map((point, idx) => {
-            const subBeat = point.subBeat || 0;
-            const y = getNoteY(point.beat, subBeat);
-            const x = point.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
-
+          {bpmMarks.map((note, idx) => {
+            const y = getNoteY(note.beat);
             return (
-              <circle
-                key={`buffer-${idx}`}
-                cx={x}
-                cy={y}
-                r={10 * scale}
-                fill="orange"
-                fillOpacity={0.7}
-              />
-            );
-          })}
-
-          {/* 选择框 */}
-          {selectionBox && (
-            <rect
-              x={Math.min(selectionBox.x1, selectionBox.x2)}
-              y={Math.min(selectionBox.y1, selectionBox.y2)}
-              width={Math.abs(selectionBox.x2 - selectionBox.x1)}
-              height={Math.abs(selectionBox.y2 - selectionBox.y1)}
-              fill="rgba(0, 123, 255, 0.2)"
-              stroke="rgba(0, 123, 255, 0.8)"
-              strokeWidth={1}
-              strokeDasharray="5,5"
-            />
-          )}
-
-          {/* 点击放置层 - 支持精确beat位置 */}
-          {Array.from({ length: LANES }).map((_, lane) => {
-            const laneX = lane * LANE_WIDTH * scale;
-            return (
-              <rect
-                key={`lane-${lane}`}
-                x={laneX}
-                y={0}
-                width={LANE_WIDTH * scale}
-                height={BEATS * BEAT_HEIGHT * scale}
-                fill="transparent"
-                onClick={(e) => {
-                  const rect = canvasRef.current?.getBoundingClientRect();
-                  if (rect) {
-                    const y = e.clientY - rect.top;
-                    const relativeY = y - offsetY;
-
-                    // 反转Y坐标以适应自下往上的布局
-                    const totalHeight = BEATS * BEAT_HEIGHT * scale;
-                    const reversedY = totalHeight - relativeY;
-
-                    // 使用与getNoteY完全对应的反向计算
-                    let beat = 0;
-                    let currentY = 0;
-
-                    // 遍历所有beat，找到鼠标位置对应的精确beat
-                    for (let b = 0; b < BEATS; b++) {
-                      const beatHeight = getBeatHeight(b) * scale;
-                      if (reversedY >= currentY && reversedY < currentY + beatHeight) {
-                        // 在当前beat内，计算精确位置
-                        const beatProgress = (reversedY - currentY) / beatHeight;
-                        beat = b + beatProgress;
-                        break;
-                      }
-                      currentY += beatHeight;
-                    }
-
-                    // 如果鼠标位置超出了所有beat范围，使用最后一个beat
-                    if (beat === 0 && reversedY >= currentY) {
-                      beat = BEATS - 1 + 0.999;
-                    }
-
-                    console.log('Mouse Y:', relativeY, 'Reversed Y:', reversedY, 'Calculated beat:', beat);
-                    console.log('BEAT_HEIGHT:', BEAT_HEIGHT, 'scale:', scale);
-                    console.log('getBeatHeight(0):', getBeatHeight(0));
-
-                    // 验证计算是否正确
-                    const testY = getNoteY(beat);
-                    console.log('Test Y for beat', beat, ':', testY);
-
-                    // 计算精确的beat位置（基于当前节拍显示）
-                    // 找到最近的子节拍位置
-                    const subBeatPosition = beat * beatDisplay;
-                    const nearestSubBeat = Math.round(subBeatPosition);
-                    const preciseBeat = nearestSubBeat / beatDisplay;
-                    console.log('SubBeat position:', subBeatPosition, 'Nearest subBeat:', nearestSubBeat, 'Precise beat:', preciseBeat);
-                    handleClick(preciseBeat, lane);
-                  }
+              <div
+                key={`bpm-left-${idx}`}
+                className="absolute text-red-600 font-bold text-sm"
+                style={{
+                  left: '10px',
+                  top: `${y}px`,
+                  transform: 'translateY(-50%)'
                 }}
-              />
+              >
+                BPM {note.bpm}
+              </div>
             );
           })}
-        </svg>
+        </div>
+
+        {/* 网格画布 */}
+        <div className="relative">
+          <svg
+            ref={canvasRef}
+            className="border bg-white"
+            width={LANES * LANE_WIDTH * scale}
+            height={BEATS * BEAT_HEIGHT * scale}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            style={{
+              cursor: dragging ? "grabbing" : (isSelecting ? "crosshair" : "default"),
+              transform: `translateY(${offsetY}px)`
+            }}
+          >
+            {/* 绘制网格 */}
+            {renderGrid()}
+
+            {/* 音符 */}
+            {notes.map((note, idx) => {
+              const isSelected = selectedNotes.includes(idx);
+
+              if (note.type === "Single") {
+                const subBeat = note.subBeat || 0;
+                const y = getNoteY(note.beat, subBeat);
+                const x = note.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
+
+                return (
+                  <g key={idx}>
+                    {/* 加粗线段表示音符 */}
+                    <line
+                      x1={x - 20 * scale}
+                      y1={y}
+                      x2={x + 20 * scale}
+                      y2={y}
+                      stroke={note.flick ? "red" : "blue"}
+                      strokeWidth={8 * scale}
+                      strokeLinecap="round"
+                      onClick={() => handleClick(note.beat, note.lane, subBeat)}
+                    />
+                    {/* 选中状态的高亮 */}
+                    {isSelected && (
+                      <line
+                        x1={x - 25 * scale}
+                        y1={y}
+                        x2={x + 25 * scale}
+                        y2={y}
+                        stroke="yellow"
+                        strokeWidth={12 * scale}
+                        strokeLinecap="round"
+                        opacity={0.7}
+                      />
+                    )}
+                    {/* 滑键标记 */}
+                    {note.flick && (
+                      <text
+                        x={x}
+                        y={y - 15 * scale}
+                        fontSize={10 * scale}
+                        fill="red"
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fontWeight="bold"
+                      >
+                        F
+                      </text>
+                    )}
+                  </g>
+                );
+              } else if (note.type === "BPM") {
+                const y = getNoteY(note.beat);
+                return (
+                  <g key={idx}>
+                    <line
+                      x1={0}
+                      y1={y}
+                      x2={LANES * LANE_WIDTH * scale}
+                      y2={y}
+                      stroke="red"
+                      strokeWidth={3}
+                      strokeDasharray="5,5"
+                    />
+                  </g>
+                );
+              } else if (note.type === "Slide") {
+                const [p1, p2] = note.connections;
+                const subBeat1 = p1.subBeat || 0;
+                const subBeat2 = p2.subBeat || 0;
+                const y1 = getNoteY(p1.beat, subBeat1);
+                const y2 = getNoteY(p2.beat, subBeat2);
+                const x1 = p1.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
+                const x2 = p2.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
+
+                return (
+                  <g key={idx}>
+                    <line
+                      x1={x1}
+                      y1={y1}
+                      x2={x2}
+                      y2={y2}
+                      stroke="purple"
+                      strokeWidth={6 * scale}
+                      strokeLinecap="round"
+                    />
+                    {/* 滑条端点 */}
+                    <circle
+                      cx={x1}
+                      cy={y1}
+                      r={8 * scale}
+                      fill="purple"
+                    />
+                    <circle
+                      cx={x2}
+                      cy={y2}
+                      r={8 * scale}
+                      fill="purple"
+                    />
+                  </g>
+                );
+              }
+              return null;
+            })}
+
+            {/* 滑条缓冲区显示 */}
+            {slideBuffer.map((point, idx) => {
+              const subBeat = point.subBeat || 0;
+              const y = getNoteY(point.beat, subBeat);
+              const x = point.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
+
+              return (
+                <circle
+                  key={`buffer-${idx}`}
+                  cx={x}
+                  cy={y}
+                  r={10 * scale}
+                  fill="orange"
+                  fillOpacity={0.7}
+                />
+              );
+            })}
+
+            {/* 选择框 */}
+            {selectionBox && (
+              <rect
+                x={Math.min(selectionBox.x1, selectionBox.x2)}
+                y={Math.min(selectionBox.y1, selectionBox.y2)}
+                width={Math.abs(selectionBox.x2 - selectionBox.x1)}
+                height={Math.abs(selectionBox.y2 - selectionBox.y1)}
+                fill="rgba(0, 123, 255, 0.2)"
+                stroke="rgba(0, 123, 255, 0.8)"
+                strokeWidth={1}
+                strokeDasharray="5,5"
+              />
+            )}
+
+            {/* 点击放置层 - 支持精确beat位置 */}
+            {Array.from({ length: LANES }).map((_, lane) => {
+              const laneX = lane * LANE_WIDTH * scale;
+              return (
+                <rect
+                  key={`lane-${lane}`}
+                  x={laneX}
+                  y={0}
+                  width={LANE_WIDTH * scale}
+                  height={BEATS * BEAT_HEIGHT * scale}
+                  fill="transparent"
+                  onClick={(e) => {
+                    const rect = canvasRef.current?.getBoundingClientRect();
+                    if (rect) {
+                      const y = e.clientY - rect.top;
+                      const relativeY = y - offsetY;
+
+                      // 反转Y坐标以适应自下往上的布局
+                      const totalHeight = BEATS * BEAT_HEIGHT * scale;
+                      const reversedY = totalHeight - relativeY;
+
+                      // 使用与getNoteY完全对应的反向计算
+                      let beat = 0;
+                      let currentY = 0;
+
+                      // 遍历所有beat，找到鼠标位置对应的精确beat
+                      for (let b = 0; b < BEATS; b++) {
+                        const beatHeight = getBeatHeight(b) * scale;
+                        if (reversedY >= currentY && reversedY < currentY + beatHeight) {
+                          // 在当前beat内，计算精确位置
+                          const beatProgress = (reversedY - currentY) / beatHeight;
+                          beat = b + beatProgress;
+                          break;
+                        }
+                        currentY += beatHeight;
+                      }
+
+                      // 如果鼠标位置超出了所有beat范围，使用最后一个beat
+                      if (beat === 0 && reversedY >= currentY) {
+                        beat = BEATS - 1 + 0.999;
+                      }
+
+                      console.log('Mouse Y:', relativeY, 'Reversed Y:', reversedY, 'Calculated beat:', beat);
+                      console.log('BEAT_HEIGHT:', BEAT_HEIGHT, 'scale:', scale);
+                      console.log('getBeatHeight(0):', getBeatHeight(0));
+
+                      // 验证计算是否正确
+                      const testY = getNoteY(beat);
+                      console.log('Test Y for beat', beat, ':', testY);
+
+                      // 计算精确的beat位置（基于当前节拍显示）
+                      // 找到最近的子节拍位置
+                      const subBeatPosition = beat * beatDisplay;
+                      const nearestSubBeat = Math.round(subBeatPosition);
+                      const preciseBeat = nearestSubBeat / beatDisplay;
+                      console.log('SubBeat position:', subBeatPosition, 'Nearest subBeat:', nearestSubBeat, 'Precise beat:', preciseBeat);
+                      handleClick(preciseBeat, lane);
+                    }
+                  }}
+                />
+              );
+            })}
+          </svg>
+        </div>
       </div>
     </div>
   );

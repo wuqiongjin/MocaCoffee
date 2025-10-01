@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import Toolbar from "../components/Toolbar";
 import ChartCanvas from "../components/ChartCanvas";
 import NoteInfoPanel from "../components/NoteInfoPanel";
-import StatusBar from "../components/StatusBar";
 import type { ChartNote } from "../notes/Charts";
 
 interface EditorProps {
@@ -24,6 +23,53 @@ export default function Editor({ }: EditorProps) {
   const [clipboard, setClipboard] = useState<ChartNote[]>([]);
   const [scale, setScale] = useState(1);
   const [isCombinationMode, setIsCombinationMode] = useState(false);
+  
+  // 区域宽度状态
+  const [leftPanelWidth, setLeftPanelWidth] = useState(256);
+  const [rightPanelWidth, setRightPanelWidth] = useState(320);
+  const [isDragging, setIsDragging] = useState<'left' | 'right' | null>(null);
+
+  // 拖拽处理函数
+  const handleMouseDown = (e: React.MouseEvent, type: 'left' | 'right') => {
+    e.preventDefault();
+    setIsDragging(type);
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isDragging) return;
+    
+    const containerWidth = window.innerWidth;
+    const newLeftWidth = isDragging === 'left' ? e.clientX : leftPanelWidth;
+    const newRightWidth = isDragging === 'right' ? containerWidth - e.clientX : rightPanelWidth;
+    
+    // 设置最小和最大宽度限制
+    const minWidth = 200;
+    const maxWidth = containerWidth * 0.6;
+    
+    if (isDragging === 'left') {
+      const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newLeftWidth));
+      setLeftPanelWidth(clampedWidth);
+    } else if (isDragging === 'right') {
+      const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newRightWidth));
+      setRightPanelWidth(clampedWidth);
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(null);
+  };
+
+  // 添加全局鼠标事件监听
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, leftPanelWidth, rightPanelWidth]);
 
   const addToHistory = (newNotes: ChartNote[]) => {
     const newHistory = history.slice(0, historyIndex + 1);
@@ -162,76 +208,234 @@ export default function Editor({ }: EditorProps) {
   }, [selectedNotes, mousePosition, clipboard, historyIndex, history.length]);
 
   return (
-    <div style={{ height: '100vh', width: '100vw', display: 'flex' }}>
-      {/* 左侧独立工具栏子窗口 - 固定定位 */}
+    <div style={{ 
+      height: '100vh', 
+      width: '100vw', 
+      display: 'flex', 
+      flexDirection: 'column',
+      backgroundColor: '#f3f4f6',
+      margin: 0,
+      padding: 0
+    }}>
+      {/* 主工作区域 */}
       <div style={{ 
-        position: 'fixed', 
-        left: 0, 
-        top: 0, 
-        height: '100%', 
-        width: '256px', 
-        backgroundColor: 'white', 
-        borderRight: '2px solid #d1d5db', 
-        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', 
-        zIndex: 10 
+        flex: 1, 
+        display: 'flex', 
+        overflow: 'hidden',
+        height: 'calc(100vh - 32px)'
       }}>
-        <Toolbar 
-          selectedTool={selectedTool} 
-          setSelectedTool={setSelectedTool}
-          beatDisplay={beatDisplay}
-          setBeatDisplay={setBeatDisplay}
-          onUndo={undo}
-          onRedo={redo}
-          canUndo={historyIndex > 0}
-          canRedo={historyIndex < history.length - 1}
-          onCopy={copySelected}
-          onCut={cutSelected}
-          onPaste={() => {
-            if (mousePosition) {
-              pasteAtPosition(mousePosition.beat, mousePosition.lane);
-            }
-          }}
-          onDelete={deleteSelected}
-          onMirror={mirrorSelected}
-          canCopy={selectedNotes.length > 0}
-          canPaste={clipboard.length > 0}
-          scale={scale}
-          onZoomIn={() => setScale(scale * 1.2)}
-          onZoomOut={() => setScale(scale / 1.2)}
-          isCombinationMode={isCombinationMode}
-          setCombinationMode={setIsCombinationMode}
-        />
-      </div>
-      
-      {/* 主内容区域 - 为工具栏留出空间 */}
-      <div style={{ flex: 1, marginLeft: '256px', display: 'flex' }}>
-        {/* 中间谱面画布区域 */}
-        <div style={{ flex: 1, overflow: 'auto' }}>
-          <ChartCanvas 
-            notes={notes} 
-            setNotes={handleNotesChange} 
-            selectedTool={selectedTool}
-            selectedNotes={selectedNotes}
-            setSelectedNotes={setSelectedNotes}
-            beatDisplay={beatDisplay}
-            onMousePositionChange={setMousePosition}
-            scale={scale}
-            isCombinationMode={isCombinationMode}
-          />
+        {/* 左侧工具栏区域 */}
+        <div style={{
+          width: `${leftPanelWidth}px`,
+          backgroundColor: 'white',
+          borderRight: '1px solid #d1d5db',
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+          display: 'flex',
+          flexDirection: 'column',
+          flexShrink: 0
+        }}>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            <Toolbar 
+              selectedTool={selectedTool} 
+              setSelectedTool={setSelectedTool}
+              beatDisplay={beatDisplay}
+              setBeatDisplay={setBeatDisplay}
+              onUndo={undo}
+              onRedo={redo}
+              canUndo={historyIndex > 0}
+              canRedo={historyIndex < history.length - 1}
+              onCopy={copySelected}
+              onCut={cutSelected}
+              onPaste={() => {
+                if (mousePosition) {
+                  pasteAtPosition(mousePosition.beat, mousePosition.lane);
+                }
+              }}
+              onDelete={deleteSelected}
+              onMirror={mirrorSelected}
+              canCopy={selectedNotes.length > 0}
+              canPaste={clipboard.length > 0}
+              scale={scale}
+              onZoomIn={() => setScale(scale * 1.2)}
+              onZoomOut={() => setScale(scale / 1.2)}
+              isCombinationMode={isCombinationMode}
+              setCombinationMode={setIsCombinationMode}
+            />
+          </div>
         </div>
-        
-        {/* 右侧音符信息面板 */}
-        <div style={{ width: '320px', backgroundColor: '#f9fafb', borderLeft: '1px solid #e5e7eb', flexShrink: 0 }}>
-          <NoteInfoPanel 
-            selectedNotes={selectedNotes}
-            notes={notes}
-            onNotesChange={handleNotesChange}
-          />
+
+        {/* 左侧分隔条 */}
+        <div
+          style={{
+            width: '4px',
+            backgroundColor: isDragging === 'left' ? '#3b82f6' : '#e5e7eb',
+            cursor: 'col-resize',
+            flexShrink: 0,
+            transition: 'background-color 0.2s'
+          }}
+          onMouseDown={(e) => handleMouseDown(e, 'left')}
+        />
+
+        {/* 中间谱面画布区域 */}
+        <div style={{ 
+          flex: 1, 
+          display: 'flex', 
+          flexDirection: 'column',
+          backgroundColor: '#f9fafb',
+          minWidth: 0,
+          marginRight: '4px' // 为右侧面板留出空间，避免遮挡
+        }}>
+          <div style={{
+            height: '32px',
+            backgroundColor: '#e5e7eb',
+            color: '#374151',
+            fontSize: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 12px',
+            borderBottom: '1px solid #d1d5db',
+            flexShrink: 0,
+            width: 'calc(100% - 4px)', // 减少宽度，避免延伸到右侧面板
+            position: 'relative',
+            overflow: 'visible'
+          }}>
+            <span style={{ 
+              flexShrink: 0,
+              minWidth: '60px'
+            }}>谱面画布</span>
+            <div style={{ 
+              position: 'absolute',
+              right: '20px', // 只移动一点点距离
+              top: '50%',
+              transform: 'translateY(-50%)',
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px',
+              whiteSpace: 'nowrap',
+              backgroundColor: '#e5e7eb',
+              padding: '0 4px'
+            }}>
+              <span style={{ fontSize: '12px' }}>节拍: 1/{beatDisplay}</span>
+              <div style={{ width: '1px', height: '16px', backgroundColor: '#9ca3af' }}></div>
+              <span style={{ 
+                fontSize: '12px',
+                whiteSpace: 'nowrap'
+              }}>
+                工具: {selectedTool === 'mouse' ? '选择' : selectedTool === 'single' ? '单键' : selectedTool === 'flick' ? '滑键' : selectedTool === 'slide' ? '滑条' : 'BPM'}
+              </span>
+            </div>
+          </div>
+          <div style={{ 
+            flex: 1, 
+            overflow: 'auto', 
+            backgroundColor: 'white',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'flex-start',
+            padding: '20px'
+          }}>
+            <div style={{ 
+              width: '100%', 
+              maxWidth: '1200px',
+              display: 'flex',
+              justifyContent: 'center'
+            }}>
+              <ChartCanvas 
+                notes={notes} 
+                setNotes={handleNotesChange} 
+                selectedTool={selectedTool}
+                selectedNotes={selectedNotes}
+                setSelectedNotes={setSelectedNotes}
+                beatDisplay={beatDisplay}
+                onMousePositionChange={setMousePosition}
+                scale={scale}
+                isCombinationMode={isCombinationMode}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 右侧分隔条 */}
+        <div
+          style={{
+            width: '4px',
+            backgroundColor: isDragging === 'right' ? '#3b82f6' : '#e5e7eb',
+            cursor: 'col-resize',
+            flexShrink: 0,
+            transition: 'background-color 0.2s'
+          }}
+          onMouseDown={(e) => handleMouseDown(e, 'right')}
+        />
+
+        {/* 右侧信息面板区域 */}
+        <div style={{
+          width: `${rightPanelWidth}px`,
+          backgroundColor: 'white',
+          borderLeft: '1px solid #d1d5db',
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+          display: 'flex',
+          flexDirection: 'column',
+          flexShrink: 0
+        }}>
+          <div style={{
+            height: '32px',
+            backgroundColor: '#e5e7eb',
+            color: '#374151',
+            fontSize: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 12px',
+            borderBottom: '1px solid #d1d5db',
+            flexShrink: 0
+          }}>
+            <span>音符信息</span>
+            <div style={{ marginLeft: 'auto' }}>
+              <span style={{ fontSize: '12px' }}>选中: {selectedNotes.length}</span>
+            </div>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            <NoteInfoPanel 
+              selectedNotes={selectedNotes}
+              notes={notes}
+              onNotesChange={handleNotesChange}
+            />
+          </div>
         </div>
       </div>
 
-      {/* 状态栏 - 使用fixed定位，完全独立于主布局 */}
-      <StatusBar mousePosition={mousePosition} selectedNotes={selectedNotes} notes={notes} />
+      {/* 底部状态栏 */}
+      <div style={{
+        height: '32px',
+        backgroundColor: '#1f2937',
+        color: 'white',
+        fontSize: '12px',
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0 16px',
+        borderTop: '1px solid #4b5563',
+        flexShrink: 0
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              backgroundColor: mousePosition ? '#22c55e' : '#6b7280'
+            }}></div>
+            <span>
+              {mousePosition ? `坐标: (轨道${mousePosition.lane}, 节拍${Math.floor(mousePosition.beat)})` : '鼠标悬停查看坐标'}
+            </span>
+          </div>
+          <div style={{ width: '1px', height: '16px', backgroundColor: '#4b5563' }}></div>
+          <div>
+            历史记录: {historyIndex + 1}/{history.length}
+          </div>
+        </div>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ color: '#9ca3af' }}>音符数: {notes.filter(n => n.type !== "BPM").length}</div>
+        </div>
+      </div>
     </div>
   );
 }
