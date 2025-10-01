@@ -15,8 +15,8 @@ interface ChartCanvasProps {
 
 const LANES = 7;   // 七条轨道
 const BEATS = 64;  // 显示 64 小节，(后续根据音频长度自动计算)
-const BEAT_HEIGHT = 40; // 每个节拍的高度
-const LANE_WIDTH = 100; // 每个轨道的宽度
+const BEAT_HEIGHT = 120; // 每个节拍的高度
+const LANE_WIDTH = 40; // 每个轨道的宽度
 
 export default function ChartCanvas({
   notes,
@@ -37,9 +37,9 @@ export default function ChartCanvas({
   const [selectionBox, setSelectionBox] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const canvasRef = useRef<SVGSVGElement>(null);
 
-  // 设置初始滚动位置为底部
+  // 设置初始滚动位置，显示4-5个beat的高度
   useEffect(() => {
-    const scrollToBottom = () => {
+    const scrollToInitialPosition = () => {
       // 查找滚动容器 - 应该是包含overflow: auto的父元素
       let scrollContainer = canvasRef.current?.parentElement;
 
@@ -52,23 +52,30 @@ export default function ChartCanvas({
         scrollContainer = scrollContainer.parentElement;
       }
       if (scrollContainer) {
-        // 强制滚动到底部
-        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+        // 计算4-5个beat的高度
+        const beatsToShow = 4.5; // 显示4.5个beat
+        let totalBeatHeight = 0;
+        for (let b = 0; b < beatsToShow; b++) {
+          totalBeatHeight += getBeatHeight(b) * scale;
+        }
+
+        // 滚动到显示4-5个beat的位置（从底部开始）
+        const totalHeight = BEATS * BEAT_HEIGHT * scale;
+        const scrollPosition = totalHeight - totalBeatHeight;
+        scrollContainer.scrollTop = Math.max(0, scrollPosition);
       }
     };
 
     // 2次延迟尝试，确保DOM完全渲染
-    const rafId = requestAnimationFrame(() => { scrollToBottom(); });
-    const timeoutId = setTimeout(scrollToBottom, 100);
-    const timeoutId2 = setTimeout(scrollToBottom, 500);
-    // const timeoutId3 = setTimeout(scrollToBottom, 1000); // no need to flush
+    const rafId = requestAnimationFrame(() => { scrollToInitialPosition(); });
+    const timeoutId = setTimeout(scrollToInitialPosition, 100);
+    const timeoutId2 = setTimeout(scrollToInitialPosition, 500);
     return () => {
       cancelAnimationFrame(rafId);
       clearTimeout(timeoutId);
       clearTimeout(timeoutId2);
-      //clearTimeout(timeoutId3);
     };
-  }, []);
+  }, [scale]);
 
   // 计算当前BPM和缩放比例
   const getBpmAtBeat = (beat: number) => {
@@ -322,7 +329,6 @@ export default function ChartCanvas({
     // 绘制水平线（节拍线）- 自下往上绘制
     for (let beat = 0; beat < BEATS; beat++) {
       const beatHeight = getBeatHeight(beat) * scale;
-      const isMainBeat = beat % 4 === 0;
       const y = totalHeight - currentY; // 反转Y坐标
 
       lines.push(
@@ -332,8 +338,8 @@ export default function ChartCanvas({
           y1={y}
           x2={LANES * LANE_WIDTH * scale}
           y2={y}
-          stroke={isMainBeat ? "#888" : "#ccc"}
-          strokeWidth={isMainBeat ? 2 : 1}
+          stroke="#ccc"
+          strokeWidth={1}
         />
       );
 
@@ -464,9 +470,9 @@ export default function ChartCanvas({
                   return (
                     <g key={idx}>
                       <line
-                        x1={x - 20 * scale}
+                        x1={x - 15 * scale}
                         y1={y}
-                        x2={x + 20 * scale}
+                        x2={x + 15 * scale}
                         y2={y}
                         stroke={note.flick ? "red" : "blue"}
                         strokeWidth={8 * scale}
@@ -475,9 +481,9 @@ export default function ChartCanvas({
                       />
                       {isSelected && (
                         <line
-                          x1={x - 25 * scale}
+                          x1={x - 18 * scale}
                           y1={y}
-                          x2={x + 25 * scale}
+                          x2={x + 18 * scale}
                           y2={y}
                           stroke="yellow"
                           strokeWidth={12 * scale}
@@ -489,8 +495,8 @@ export default function ChartCanvas({
                       {note.flick && (
                         <text
                           x={x}
-                          y={y - 15 * scale}
-                          fontSize={`${10 * scale}`}
+                          y={y - 20 * scale}
+                          fontSize={`${12 * scale}`}
                           fill="red"
                           textAnchor="middle"
                           dominantBaseline="middle"
@@ -538,8 +544,8 @@ export default function ChartCanvas({
                         strokeLinecap="round"
                       />
                       {/* 滑条端点 */}
-                      <circle cx={x1} cy={y1} r={8 * scale} fill="purple" />
-                      <circle cx={x2} cy={y2} r={8 * scale} fill="purple" />
+                      <circle cx={x1} cy={y1} r={6 * scale} fill="purple" />
+                      <circle cx={x2} cy={y2} r={6 * scale} fill="purple" />
                     </g>
                   );
                 }
@@ -557,7 +563,7 @@ export default function ChartCanvas({
                     key={`buffer-${idx}`}
                     cx={x}
                     cy={y}
-                    r={10 * scale}
+                    r={8 * scale}
                     fill="orange"
                     fillOpacity={0.7}
                   />
@@ -620,7 +626,7 @@ export default function ChartCanvas({
 
                         // 验证计算是否正确
                         const testY = getNoteY(beat);
-                        console.log('Test Y for beat', beat, ':', testY);                        
+                        console.log('Test Y for beat', beat, ':', testY);
 
                         // 计算精确的beat位置（基于当前节拍显示）
                         // 找到最近的子节拍位置

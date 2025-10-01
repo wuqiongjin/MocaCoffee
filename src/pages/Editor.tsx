@@ -24,9 +24,9 @@ export default function Editor({ }: EditorProps) {
   const [scale, setScale] = useState(1);
   const [isCombinationMode, setIsCombinationMode] = useState(false);
   
-  // 区域宽度状态
-  const [leftPanelWidth, setLeftPanelWidth] = useState(256);
-  const [rightPanelWidth, setRightPanelWidth] = useState(320);
+  // 区域宽度状态 - 按照1:1.3:0.75的比例分配
+  const [leftPanelWidth, setLeftPanelWidth] = useState(470);  // 左侧面板：1/3.05 ≈ 32.8%
+  const [rightPanelWidth, setRightPanelWidth] = useState(300); // 右侧面板：0.75/3.05 ≈ 24.6%
   const [isDragging, setIsDragging] = useState<'left' | 'right' | null>(null);
 
   // 拖拽处理函数
@@ -42,9 +42,9 @@ export default function Editor({ }: EditorProps) {
     const newLeftWidth = isDragging === 'left' ? e.clientX : leftPanelWidth;
     const newRightWidth = isDragging === 'right' ? containerWidth - e.clientX : rightPanelWidth;
     
-    // 设置最小和最大宽度限制
+    // 设置最小和最大宽度限制 - 适应新的比例
     const minWidth = 200;
-    const maxWidth = containerWidth * 0.6;
+    const maxWidth = containerWidth * 0.5; // 减少最大宽度，确保中间画布有足够空间
     
     if (isDragging === 'left') {
       const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newLeftWidth));
@@ -232,7 +232,8 @@ export default function Editor({ }: EditorProps) {
           boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
           display: 'flex',
           flexDirection: 'column',
-          flexShrink: 0
+          flexShrink: 0,
+          minWidth: `${leftPanelWidth}px` // 确保最小宽度
         }}>
           <div style={{ flex: 1, overflowY: 'auto' }}>
             <Toolbar 
@@ -375,7 +376,8 @@ export default function Editor({ }: EditorProps) {
           boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
           display: 'flex',
           flexDirection: 'column',
-          flexShrink: 0
+          flexShrink: 0,
+          minWidth: `${rightPanelWidth}px` // 确保最小宽度
         }}>
           <div style={{
             height: '32px',
