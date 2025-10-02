@@ -361,6 +361,9 @@ export default function ChartCanvas({
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    // 阻止默认的拖拽和选择行为
+    e.preventDefault();
+
     if (selectedTool === "mouse" && e.ctrlKey) {
       // Ctrl+鼠标拖拽进行区域选择
       setIsSelecting(true);
@@ -373,10 +376,6 @@ export default function ChartCanvas({
           y2: e.clientY - rect.top
         });
       }
-    } else if (selectedTool === "mouse" && e.shiftKey) {
-      // Shift+鼠标拖拽进行画布滚动
-      setDragging(true);
-      setDragStart({ x: e.clientX, y: e.clientY });
     }
     // 其他情况下不允许拖拽画布
   };
@@ -470,6 +469,7 @@ export default function ChartCanvas({
     }
   };
 
+
   // ---------------------------
   // 渲染网格和音符逻辑（renderGrid 改为使用 beatToOffset）
   // ---------------------------
@@ -538,8 +538,6 @@ export default function ChartCanvas({
 
         borderColors.forEach((color, index) => {
           const width = borderWidths[index] * scale;
-          // 调试信息
-          console.log(`Lane ${lane}, Border ${index}: color=${color}, width=${width}, offset=${currentOffset}, isRight=${isRightBorder}`);
 
           // 向外绘制边框：
           // 左侧轨道：向左扩展（负方向）
@@ -584,7 +582,7 @@ export default function ChartCanvas({
   // 计算边框总宽度：[1, 4, 1, 1, 1, 1] = 9px (未缩放)
   const borderTotalWidth = (1 + 4 + 1 + 1 + 1 + 1) * scale;
 
-  // 扩大SVG宽度以容纳左右两侧的边框
+  // SVG宽度保持原来的计算方式
   const svgWidth = LANES * LANE_WIDTH * scale + borderTotalWidth * 2;
 
   // 辅助函数：计算音符的正确X坐标（包含边框偏移）
@@ -650,7 +648,7 @@ export default function ChartCanvas({
           </div>
 
           {/* 画布区域 */}
-          <div style={{ position: 'relative', backgroundColor: '#000000' }}>
+          <div style={{ position: 'relative', backgroundColor: '#000000', overflow: 'visible' }}>
             <svg
               ref={canvasRef}
               className="border"
@@ -659,10 +657,16 @@ export default function ChartCanvas({
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
+              onDragStart={(e) => e.preventDefault()} // 阻止默认拖拽行为
               style={{
                 backgroundColor: '#000000', // 轨道外背景样式
                 cursor: dragging ? "grabbing" : (isSelecting ? "crosshair" : "default"),
-                display: 'block' // 避免 inline svg 造成 baseline 问题
+                display: 'block', // 避免 inline svg 造成 baseline 问题
+                userSelect: 'none', // 禁用文本选择
+                WebkitUserSelect: 'none', // Safari 兼容
+                MozUserSelect: 'none', // Firefox 兼容
+                msUserSelect: 'none', // IE 兼容
+                overflow: 'visible' // 允许directional修饰器显示在SVG边界外
               }}
             >
               {/* 网格 */}

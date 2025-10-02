@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Toolbar from "../components/Toolbar";
 import ChartCanvas from "../components/ChartCanvas";
 import NoteInfoPanel from "../components/NoteInfoPanel";
@@ -28,6 +28,9 @@ export default function Editor({ }: EditorProps) {
   const [leftPanelWidth, setLeftPanelWidth] = useState(470);  // 左侧面板：1/3.05 ≈ 32.8%
   const [rightPanelWidth, setRightPanelWidth] = useState(300); // 右侧面板：0.75/3.05 ≈ 24.6%
   const [isDragging, setIsDragging] = useState<'left' | 'right' | null>(null);
+
+  // 谱面画布容器引用，用于缩放监听
+  const chartAreaRef = useRef<HTMLDivElement>(null);
 
   // 拖拽处理函数
   const handleMouseDown = (e: React.MouseEvent, type: 'left' | 'right') => {
@@ -218,6 +221,39 @@ export default function Editor({ }: EditorProps) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedNotes, mousePosition, clipboard, historyIndex, history.length]);
 
+  // 添加谱面画布区域的缩放监听
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) {
+        // Ctrl+滚轮进行缩放，使用与工具栏相同的缩放倍数
+        e.preventDefault(); // 阻止默认的网页缩放行为
+        e.stopPropagation(); // 阻止事件冒泡
+
+        const zoomFactor = 1.2; // 与工具栏缩放倍数保持一致
+        const delta = e.deltaY;
+
+        if (delta < 0) {
+          // 向上滚动，放大 - 等价于工具栏的 onZoomIn
+          setScale(Math.min(scale * zoomFactor, 3)); // 最大缩放300%
+        } else {
+          // 向下滚动，缩小 - 等价于工具栏的 onZoomOut
+          setScale(Math.max(scale / zoomFactor, 0.161)); // 最小缩放16%
+        }
+      }
+      // 如果没有按Ctrl键，不处理，让默认行为继续（滚动）
+    };
+
+    const chartAreaElement = chartAreaRef.current;
+    if (chartAreaElement) {
+      // 添加原生事件监听器到谱面画布容器，passive: false 确保可以调用preventDefault
+      chartAreaElement.addEventListener('wheel', handleWheel, { passive: false });
+
+      return () => {
+        chartAreaElement.removeEventListener('wheel', handleWheel);
+      };
+    }
+  }, [scale, setScale]); // 依赖scale和setScale
+
   return (
     <div style={{ 
       height: '100vh', 
@@ -268,8 +304,8 @@ export default function Editor({ }: EditorProps) {
               canCopy={selectedNotes.length > 0}
               canPaste={clipboard.length > 0}
               scale={scale}
-              onZoomIn={() => setScale(scale * 1.2)}
-              onZoomOut={() => setScale(scale / 1.2)}
+              onZoomIn={() => setScale(Math.min(scale * 1.2, 3))} // 最大缩放300%
+              onZoomOut={() => setScale(Math.max(scale / 1.2, 0.1))} // 最小缩放10%
               isCombinationMode={isCombinationMode}
               setCombinationMode={setIsCombinationMode}
             />
@@ -346,7 +382,7 @@ export default function Editor({ }: EditorProps) {
               </span>
             </div>
           </div>
-          <div style={{ 
+          <div ref={chartAreaRef} style={{ 
             flex: 1, 
             overflow: 'auto', 
             backgroundColor: '#000000', // 改为黑色背景
