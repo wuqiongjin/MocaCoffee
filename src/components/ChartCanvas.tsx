@@ -675,6 +675,7 @@ export default function ChartCanvas({
               {renderGrid()}
 
               {/* 音符 & BPM 线（注意：BPM 线保留，但不在 SVG 内画数字） */}
+              {/* 第一层：普通音符和方向键主体 */}
               {notes.map((note, idx) => {
                 const isSelected = selectedNotes.includes(idx);
 
@@ -695,7 +696,7 @@ export default function ChartCanvas({
 
                   return (
                     <g key={idx}>
-                      {/* 使用sprite图标替换简单的线条 */}
+                      {/* 使用sprite图标替换简单的线条 - 只渲染主体层 */}
                       <SVGSpriteIcon
                         {...iconConfig}
                         svgX={x}
@@ -704,6 +705,7 @@ export default function ChartCanvas({
                         svgWidth={iconSize}
                         svgHeight={iconHeight}
                         scale={scale}
+                        renderLayer="main"
                         onClick={() => handleClick(note.beat, note.lane, subBeat)}
                       />
 
@@ -728,17 +730,34 @@ export default function ChartCanvas({
                   const iconSize = DIRECTIONAL_ICON_SIZE * scale; // 音符图标大小
                   const iconHeight = iconSize * DIRECTIONAL_HEIGHT_SCALE; // 压缩后的高度
 
+                  // 根据length属性选择对应的组合图标配置
+                  let iconConfig;
+                  switch (note.length) {
+                    case 1:
+                      iconConfig = SVGNoteIcons.leftFlickL1;
+                      break;
+                    case 2:
+                      iconConfig = SVGNoteIcons.leftFlickL2;
+                      break;
+                    case 3:
+                      iconConfig = SVGNoteIcons.leftFlickL3;
+                      break;
+                    default:
+                      iconConfig = SVGNoteIcons.leftFlickL1;
+                  }
+
                   return (
                     <g key={idx}>
-                      {/* 使用左方向滑键sprite图标 */}
+                      {/* 使用新的组合图标配置 - 只渲染主体层 */}
                       <SVGSpriteIcon
-                        {...SVGNoteIcons.leftFlick}
+                        {...iconConfig}
                         svgX={x}
                         svgY={y}
                         svgSize={iconSize}
                         svgWidth={iconSize}
                         svgHeight={iconHeight}
                         scale={scale}
+                        renderLayer="main"
                         onClick={() => handleClick(note.beat, note.lane, subBeat)}
                       />
 
@@ -755,17 +774,18 @@ export default function ChartCanvas({
                         />
                       )}
 
-                      {/* 长度标记 */}
+                      {/* 长度标记（可选，用于调试） */}
                       <text
                         x={x}
                         y={y - 30 * scale}
-                        fontSize={`${10 * scale}`}
+                        fontSize={`${8 * scale}`}
                         fill="white"
                         textAnchor="middle"
                         dominantBaseline="middle"
                         fontWeight="bold"
                         stroke="black"
                         strokeWidth={1}
+                        opacity={0.7}
                       >
                         L{note.length}
                       </text>
@@ -778,17 +798,34 @@ export default function ChartCanvas({
                   const iconSize = DIRECTIONAL_ICON_SIZE * scale; // 音符图标大小
                   const iconHeight = iconSize * DIRECTIONAL_HEIGHT_SCALE; // 压缩后的高度
 
+                  // 根据length属性选择对应的组合图标配置
+                  let iconConfig;
+                  switch (note.length) {
+                    case 1:
+                      iconConfig = SVGNoteIcons.rightFlickR1;
+                      break;
+                    case 2:
+                      iconConfig = SVGNoteIcons.rightFlickR2;
+                      break;
+                    case 3:
+                      iconConfig = SVGNoteIcons.rightFlickR3;
+                      break;
+                    default:
+                      iconConfig = SVGNoteIcons.rightFlickR1;
+                  }
+
                   return (
                     <g key={idx}>
-                      {/* 使用右方向滑键sprite图标 */}
+                      {/* 使用新的组合图标配置 - 只渲染主体层 */}
                       <SVGSpriteIcon
-                        {...SVGNoteIcons.rightFlick}
+                        {...iconConfig}
                         svgX={x}
                         svgY={y}
                         svgSize={iconSize}
                         svgWidth={iconSize}
                         svgHeight={iconHeight}
                         scale={scale}
+                        renderLayer="main"
                         onClick={() => handleClick(note.beat, note.lane, subBeat)}
                       />
 
@@ -805,17 +842,18 @@ export default function ChartCanvas({
                         />
                       )}
 
-                      {/* 长度标记 */}
+                      {/* 长度标记（可选，用于调试） */}
                       <text
                         x={x}
                         y={y - 30 * scale}
-                        fontSize={`${10 * scale}`}
+                        fontSize={`${8 * scale}`}
                         fill="white"
                         textAnchor="middle"
                         dominantBaseline="middle"
                         fontWeight="bold"
                         stroke="black"
                         strokeWidth={1}
+                        opacity={0.7}
                       >
                         R{note.length}
                       </text>
@@ -925,6 +963,71 @@ export default function ChartCanvas({
                         />
                       )}
                     </g>
+                  );
+                }
+                return null;
+              })}
+
+              {/* 第二层：装饰器层 - 确保装饰器在所有音符之上 */}
+              {notes.map((note, idx) => {
+                if (note.type === "LDirectional" || note.type === "RDirectional") {
+                  const subBeat = note.subBeat || 0;
+                  const y = getNoteY(note.beat, subBeat);
+                  const x = getNoteX(note.lane);
+                  const iconSize = DIRECTIONAL_ICON_SIZE * scale;
+                  const iconHeight = iconSize * DIRECTIONAL_HEIGHT_SCALE;
+
+                  // 根据length属性选择对应的组合图标配置
+                  let iconConfig;
+                  if (note.type === "LDirectional") {
+                    switch (note.length) {
+                      case 1: iconConfig = SVGNoteIcons.leftFlickL1; break;
+                      case 2: iconConfig = SVGNoteIcons.leftFlickL2; break;
+                      case 3: iconConfig = SVGNoteIcons.leftFlickL3; break;
+                      default: iconConfig = SVGNoteIcons.leftFlickL1;
+                    }
+                  } else {
+                    switch (note.length) {
+                      case 1: iconConfig = SVGNoteIcons.rightFlickR1; break;
+                      case 2: iconConfig = SVGNoteIcons.rightFlickR2; break;
+                      case 3: iconConfig = SVGNoteIcons.rightFlickR3; break;
+                      default: iconConfig = SVGNoteIcons.rightFlickR1;
+                    }
+                  }
+
+                  return (
+                    <SVGSpriteIcon
+                      key={`directional-decorator-${idx}`}
+                      {...iconConfig}
+                      svgX={x}
+                      svgY={y}
+                      svgSize={iconSize}
+                      svgWidth={iconSize}
+                      svgHeight={iconHeight}
+                      scale={scale}
+                      renderLayer="decorators"
+                    />
+                  );
+                } else if (note.type === "Single" && note.flick) {
+                  // 滑键音符的装饰器层渲染
+                  const subBeat = note.subBeat || 0;
+                  const y = getNoteY(note.beat, subBeat);
+                  const x = getNoteX(note.lane);
+                  const iconSize = NOTE_ICON_SIZE * scale;
+                  const iconHeight = iconSize * NOTE_HEIGHT_SCALE;
+
+                  return (
+                    <SVGSpriteIcon
+                      key={`flick-decorator-${idx}`}
+                      {...SVGNoteIcons.flick}
+                      svgX={x}
+                      svgY={y}
+                      svgSize={iconSize}
+                      svgWidth={iconSize}
+                      svgHeight={iconHeight}
+                      scale={scale}
+                      renderLayer="decorators"
+                    />
                   );
                 }
                 return null;

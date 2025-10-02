@@ -14,6 +14,7 @@ interface SVGSpriteIconProps {
     // 组合图标相关
     decorators?: SpriteIconConfig[]; // 装饰器图标配置数组
     scale?: number; // 缩放比例，用于调整装饰器偏移量
+    renderLayer?: 'main' | 'decorators' | 'all'; // 渲染层级控制
 }
 
 interface SpriteIconConfig {
@@ -27,6 +28,7 @@ interface SpriteIconConfig {
     scale?: number; // 装饰器的缩放比例（默认1.0）
     scaleX?: number; // 装饰器的X轴缩放比例（默认使用scale）
     scaleY?: number; // 装饰器的Y轴缩放比例（默认使用scale）
+    zIndex?: number; // 图层优先级，数值越大越在上层（默认0）
 }
 
 export default function SVGSpriteIcon({
@@ -43,49 +45,23 @@ export default function SVGSpriteIcon({
     className = "",
     onClick,
     decorators = [],
-    scale = 1.0
+    scale = 1.0,
+    renderLayer = 'all'
 }: SVGSpriteIconProps) {
     // 使用传入的宽度和高度，如果没有传入则使用svgSize
     const displayWidth = svgWidth || svgSize;
     const displayHeight = svgHeight || svgSize;
 
-    return (
-        <g className={`svg-sprite-icon ${className}`} onClick={onClick}>
-            {/* 主图标 */}
-            <foreignObject
-                x={svgX - displayWidth / 2}
-                y={svgY - displayHeight / 2}
-                width={displayWidth}
-                height={displayHeight}
-                style={{ overflow: 'hidden' }}
-            >
-                <div
-                    style={{
-                        width: '100%',
-                        height: '100%',
-                        position: 'relative',
-                        overflow: 'hidden'
-                    }}
-                >
-                    <img
-                        src={src}
-                        alt="sprite"
-                        style={{
-                            position: 'absolute',
-                            left: `${x}%`,
-                            top: `${y}%`,
-                            width: `${width}%`,
-                            height: `${height}%`,
-                            maxWidth: `${width}%`,
-                            maxHeight: `${height}%`,
-                            imageRendering: 'pixelated'
-                        }}
-                    />
-                </div>
-            </foreignObject>
+    // 分离装饰器：低zIndex（主体层）和高zIndex（装饰器层）
+    const lowZIndexDecorators = decorators.filter(d => (d.zIndex || 0) < 10);
+    const highZIndexDecorators = decorators.filter(d => (d.zIndex || 0) >= 10);
 
-            {/* 装饰器图标 */}
-            {decorators.map((decorator, index) => {
+    // 渲染装饰器的通用函数
+    const renderDecorators = (decoratorList: typeof decorators) => {
+        return decoratorList
+            .map((decorator, originalIndex) => ({ decorator, originalIndex }))
+            .sort((a, b) => (a.decorator.zIndex || 0) - (b.decorator.zIndex || 0))
+            .map(({ decorator, originalIndex }) => {
                 const scaleX = decorator.scaleX || decorator.scale || 1.0;
                 const scaleY = decorator.scaleY || decorator.scale || 1.0;
                 const decoratorWidth = displayWidth * scaleX;
@@ -96,7 +72,7 @@ export default function SVGSpriteIcon({
 
                 return (
                     <foreignObject
-                        key={index}
+                        key={`${renderLayer}-${originalIndex}`}
                         x={svgX - decoratorWidth / 2 + offsetX}
                         y={svgY - decoratorHeight / 2 + offsetY}
                         width={decoratorWidth}
@@ -128,7 +104,51 @@ export default function SVGSpriteIcon({
                         </div>
                     </foreignObject>
                 );
-            })}
+            });
+    };
+
+    return (
+        <g className={`svg-sprite-icon ${className}`} onClick={onClick}>
+            {/* 主图标 - 只在main或all层渲染 */}
+            {(renderLayer === 'main' || renderLayer === 'all') && (
+                <foreignObject
+                    x={svgX - displayWidth / 2}
+                    y={svgY - displayHeight / 2}
+                    width={displayWidth}
+                    height={displayHeight}
+                    style={{ overflow: 'hidden' }}
+                >
+                    <div
+                        style={{
+                            width: '100%',
+                            height: '100%',
+                            position: 'relative',
+                            overflow: 'hidden'
+                        }}
+                    >
+                        <img
+                            src={src}
+                            alt="sprite"
+                            style={{
+                                position: 'absolute',
+                                left: `${x}%`,
+                                top: `${y}%`,
+                                width: `${width}%`,
+                                height: `${height}%`,
+                                maxWidth: `${width}%`,
+                                maxHeight: `${height}%`,
+                                imageRendering: 'pixelated'
+                            }}
+                        />
+                    </div>
+                </foreignObject>
+            )}
+
+            {/* 低zIndex装饰器 - 只在main或all层渲染 */}
+            {(renderLayer === 'main' || renderLayer === 'all') && renderDecorators(lowZIndexDecorators)}
+
+            {/* 高zIndex装饰器 - 只在decorators或all层渲染 */}
+            {(renderLayer === 'decorators' || renderLayer === 'all') && renderDecorators(highZIndexDecorators)}
         </g>
     );
 }
@@ -190,8 +210,8 @@ export const DecoratorIcons = {
         y: -53.333,
         width: 664.935,
         height: 995.333,
-        offsetX: 8,  // 相对于主图标的X偏移 (向右偏移8px)
-        offsetY: -11, // 相对于主图标的Y偏移（向上偏移11px）
+        offsetX: 9,  // 相对于主图标的X偏移 (向右偏移9px)
+        offsetY: -12, // 相对于主图标的Y偏移（向上偏移12px）
         scale: 1.0, // 装饰器整体缩放比例
         scaleX: 1.0, // X轴缩放比例（宽度保持不变）
         scaleY: 0.6  // Y轴缩放比例（高度压缩到60%，变窄）
@@ -231,17 +251,143 @@ export const CompositeNoteConfigs = {
     // 滑键音符 = 基础flick + flickDecorator
     flick: {
         ...BaseSpriteIcons.flick,
-        decorators: [DecoratorIcons.flickDecorator]
+        decorators: [
+            {
+                ...DecoratorIcons.flickDecorator,
+                zIndex: 10 // 设置与方向键装饰器相同的高优先级
+            }
+        ]
     },
-    // 左方向滑键 = 基础leftFlick + LDirectionalFlickDecorator
+    // 左方向滑键组合 - 根据length属性选择不同的组合
+    // L1: 1个LDirectionalFlickDecorator + 1个leftFlick
+    leftFlickL1: {
+        ...BaseSpriteIcons.leftFlick,
+        decorators: [
+            {
+                ...DecoratorIcons.LDirectionalFlickDecorator,
+                zIndex: 10 // 设置更高的图层优先级
+            }
+        ]
+    },
+    // L2: 1个LDirectionalFlickDecorator + 2个leftFlick
+    leftFlickL2: {
+        ...BaseSpriteIcons.leftFlick,
+        decorators: [
+            {
+                ...BaseSpriteIcons.leftFlick,
+                offsetX: -40, // 第二个leftFlick向左偏移
+                offsetY: 0,
+                scale: 0.9
+            },
+            {
+                ...DecoratorIcons.LDirectionalFlickDecorator,
+                offsetX: -68,
+                offsetY: 0,
+                scale: 1.0,
+                zIndex: 10 // 设置更高的图层优先级
+            }
+        ]
+    },
+    // L3: 1个LDirectionalFlickDecorator + 3个leftFlick
+    leftFlickL3: {
+        ...BaseSpriteIcons.leftFlick,
+        decorators: [
+            {
+                ...BaseSpriteIcons.leftFlick,
+                offsetX: -40, // 第二个leftFlick向左偏移
+                offsetY: 0,
+                scale: 0.9
+            },
+            {
+                ...BaseSpriteIcons.leftFlick,
+                offsetX: -80, // 第三个leftFlick更向左偏移
+                offsetY: 0,
+                scale: 0.9
+            },
+            {
+                ...DecoratorIcons.LDirectionalFlickDecorator,
+                offsetX: -108,
+                offsetY: 0,
+                scale: 1.0,
+                zIndex: 10 // 设置更高的图层优先级
+            }
+        ]
+    },
+
+    // 右方向滑键组合 - 根据length属性选择不同的组合
+    // R1: 1个RDirectionalFlickDecorator + 1个rightFlick
+    rightFlickR1: {
+        ...BaseSpriteIcons.rightFlick,
+        decorators: [
+            {
+                ...DecoratorIcons.RDirectionalFlickDecorator,
+                zIndex: 10 // 设置更高的图层优先级
+            }
+        ]
+    },
+    // R2: 1个RDirectionalFlickDecorator + 2个rightFlick
+    rightFlickR2: {
+        ...BaseSpriteIcons.rightFlick,
+        decorators: [
+            {
+                ...BaseSpriteIcons.rightFlick,
+                offsetX: 40, // 第二个rightFlick向右偏移
+                offsetY: 0,
+                scale: 0.9
+            },
+            {
+                ...DecoratorIcons.RDirectionalFlickDecorator,
+                offsetX: 68,
+                offsetY: 0,
+                scale: 1.0,
+                zIndex: 10 // 设置更高的图层优先级
+            }
+        ]
+    },
+    // R3: 1个RDirectionalFlickDecorator + 3个rightFlick
+    rightFlickR3: {
+        ...BaseSpriteIcons.rightFlick,
+        decorators: [
+            {
+                ...BaseSpriteIcons.rightFlick,
+                offsetX: 40, // 第二个rightFlick向右偏移
+                offsetY: 0,
+                scale: 0.9
+            },
+            {
+                ...BaseSpriteIcons.rightFlick,
+                offsetX: 80, // 第三个rightFlick更向右偏移
+                offsetY: 0,
+                scale: 0.9
+            },
+            {
+                ...DecoratorIcons.RDirectionalFlickDecorator,
+                offsetX: 108,
+                offsetY: 0,
+                scale: 1.0,
+                zIndex: 10 // 设置更高的图层优先级
+            }
+        ]
+    },
+
+    // 保留旧的配置用于向后兼容
     leftFlick: {
         ...BaseSpriteIcons.leftFlick,
-        decorators: [DecoratorIcons.LDirectionalFlickDecorator]
+        decorators: [
+            {
+                ...DecoratorIcons.LDirectionalFlickDecorator,
+                zIndex: 10 // 设置更高的图层优先级
+            }
+        ]
     },
-    // 右方向滑键 = 基础rightFlick + RDirectionalFlickDecorator
     rightFlick: {
         ...BaseSpriteIcons.rightFlick,
-        decorators: [DecoratorIcons.RDirectionalFlickDecorator]
+        decorators: [
+            {
+                ...DecoratorIcons.RDirectionalFlickDecorator,
+                zIndex: 10 // 设置更高的图层优先级
+            }
+        ]
     },
 
     // 其他音符直接使用基础配置
