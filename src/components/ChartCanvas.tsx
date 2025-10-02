@@ -498,8 +498,8 @@ export default function ChartCanvas({
           y1={y}
           x2={borderTotalWidth + LANES * LANE_WIDTH * scale}
           y2={y}
-          stroke="#444444"
-          strokeWidth={1}
+          stroke="#555555"
+          strokeWidth={Math.max(2, 2 * scale)}
         />
       );
 
@@ -507,6 +507,7 @@ export default function ChartCanvas({
       for (let subBeat = 1; subBeat < beatDisplay; subBeat++) {
         const preciseBeat = beat + subBeat / beatDisplay;
         const subY = totalHeight - beatToOffset(preciseBeat);
+
         lines.push(
           <line
             key={`subbeat-${beat}-${subBeat}`}
@@ -514,9 +515,10 @@ export default function ChartCanvas({
             y1={subY}
             x2={borderTotalWidth + LANES * LANE_WIDTH * scale}
             y2={subY}
-            stroke="#222222"
-            strokeWidth={0.5}
-            strokeDasharray="2,2"
+            stroke="#666666"
+            strokeWidth={Math.max(0.5, 1 * scale)}
+            strokeDasharray={`${4 * scale},${6 * scale}`}
+            opacity={0.8}
           />
         );
       }
