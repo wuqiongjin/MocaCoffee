@@ -774,21 +774,6 @@ export default function ChartCanvas({
                         />
                       )}
 
-                      {/* 长度标记（可选，用于调试） */}
-                      <text
-                        x={x}
-                        y={y - 30 * scale}
-                        fontSize={`${8 * scale}`}
-                        fill="white"
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fontWeight="bold"
-                        stroke="black"
-                        strokeWidth={1}
-                        opacity={0.7}
-                      >
-                        L{note.length}
-                      </text>
                     </g>
                   );
                 } else if (note.type === "RDirectional") {
@@ -842,21 +827,6 @@ export default function ChartCanvas({
                         />
                       )}
 
-                      {/* 长度标记（可选，用于调试） */}
-                      <text
-                        x={x}
-                        y={y - 30 * scale}
-                        fontSize={`${8 * scale}`}
-                        fill="white"
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fontWeight="bold"
-                        stroke="black"
-                        strokeWidth={1}
-                        opacity={0.7}
-                      >
-                        R{note.length}
-                      </text>
                     </g>
                   );
                 } else if (note.type === "BPM") {

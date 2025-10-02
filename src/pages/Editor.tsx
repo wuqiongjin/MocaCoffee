@@ -305,7 +305,7 @@ export default function Editor({ }: EditorProps) {
               canPaste={clipboard.length > 0}
               scale={scale}
               onZoomIn={() => setScale(Math.min(scale * 1.2, 3))} // 最大缩放300%
-              onZoomOut={() => setScale(Math.max(scale / 1.2, 0.1))} // 最小缩放10%
+              onZoomOut={() => setScale(Math.max(scale / 1.2, 0.161))} // 最小缩放16.1%
               isCombinationMode={isCombinationMode}
               setCombinationMode={setIsCombinationMode}
             />
