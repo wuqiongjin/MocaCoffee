@@ -1,8 +1,6 @@
 import { 
   Music, 
   Square, 
-  Activity, 
-  MousePointerClick, 
   MousePointer, 
   ZoomIn, 
   ZoomOut, 
@@ -16,6 +14,7 @@ import {
   Play,
   Pause
 } from "lucide-react";
+import SpriteIcon, { NoteIcons } from './SpriteIcon';
 
 interface ToolbarProps {
   selectedTool: string;
@@ -65,9 +64,12 @@ export default function Toolbar({
   const tools = [
     { id: "mouse", icon: <MousePointer size={20} />, label: "鼠标状态" },
     { id: "bpm", icon: <Music size={20} />, label: "BPM键型" },
-    { id: "single", icon: <Square size={20} />, label: "单键音符" },
-    { id: "flick", icon: <MousePointerClick size={20} />, label: "滑键音符" },
-    { id: "slide", icon: <Activity size={20} />, label: "滑条音符" },
+    { id: "single", icon: <SpriteIcon {...NoteIcons.tap} size={20} />, label: "单键音符" },
+    { id: "flick", icon: <SpriteIcon {...NoteIcons.flick} size={20} />, label: "滑键音符" },
+    { id: "skill", icon: <SpriteIcon {...NoteIcons.skill} size={20} />, label: "技能音符" },
+    { id: "ldirectional", icon: <SpriteIcon {...NoteIcons.leftFlick} size={20} />, label: "左方向滑键" },
+    { id: "rdirectional", icon: <SpriteIcon {...NoteIcons.rightFlick} size={20} />, label: "右方向滑键" },
+    { id: "slide", icon: <SpriteIcon {...NoteIcons.slide} size={20} />, label: "滑条音符" },
   ];
 
   const beatOptions = [

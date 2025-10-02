@@ -118,20 +118,25 @@ export default function Editor({ }: EditorProps) {
     if (clipboard.length > 0) {
       const newNotes = [...notes];
       clipboard.forEach(note => {
-        if (note.type === "Single") {
+        if (note.type === "Single" || note.type === "LDirectional" || note.type === "RDirectional") {
           newNotes.push({
             ...note,
-            beat: beat + (note.beat - Math.min(...clipboard.map(n => n.type === "Single" ? n.beat : 0))),
-            lane: lane + (note.lane - Math.min(...clipboard.map(n => n.type === "Single" ? n.lane : 0)))
+            beat: beat + (note.beat - Math.min(...clipboard.map(n => (n.type === "Single" || n.type === "LDirectional" || n.type === "RDirectional") ? n.beat : 0))),
+            lane: lane + (note.lane - Math.min(...clipboard.map(n => (n.type === "Single" || n.type === "LDirectional" || n.type === "RDirectional") ? n.lane : 0)))
           });
-        } else if (note.type === "Slide") {
+        } else if (note.type === "Slide" || note.type === "Long") {
           newNotes.push({
             ...note,
             connections: note.connections.map(conn => ({
               ...conn,
-              beat: beat + (conn.beat - Math.min(...clipboard.map(n => n.type === "Single" ? n.beat : 0))),
-              lane: lane + (conn.lane - Math.min(...clipboard.map(n => n.type === "Single" ? n.lane : 0)))
+              beat: beat + (conn.beat - Math.min(...clipboard.map(n => (n.type === "Single" || n.type === "LDirectional" || n.type === "RDirectional") ? n.beat : 0))),
+              lane: lane + (conn.lane - Math.min(...clipboard.map(n => (n.type === "Single" || n.type === "LDirectional" || n.type === "RDirectional") ? n.lane : 0)))
             }))
+          });
+        } else if (note.type === "BPM") {
+          newNotes.push({
+            ...note,
+            beat: beat + (note.beat - Math.min(...clipboard.map(n => n.type === "BPM" ? n.beat : 0)))
           });
         }
       });
@@ -155,10 +160,16 @@ export default function Editor({ }: EditorProps) {
         if (note && 'lane' in note) {
           note.lane = 4 - note.lane; // 镜像到对面轨道
         }
-        if (note && note.type === "Slide") {
+        if (note && (note.type === "Slide" || note.type === "Long")) {
           note.connections.forEach(conn => {
             conn.lane = 4 - conn.lane;
           });
+        }
+        // 对于方向性音符，需要转换类型
+        if (note && note.type === "LDirectional") {
+          note.type = "RDirectional";
+        } else if (note && note.type === "RDirectional") {
+          note.type = "LDirectional";
         }
       });
       handleNotesChange(newNotes);
@@ -213,7 +224,7 @@ export default function Editor({ }: EditorProps) {
       width: '100vw', 
       display: 'flex', 
       flexDirection: 'column',
-      backgroundColor: '#f3f4f6',
+      backgroundColor: '#000000', // 改为黑色背景
       margin: 0,
       padding: 0
     }}>
@@ -282,21 +293,21 @@ export default function Editor({ }: EditorProps) {
           flex: 1, 
           display: 'flex', 
           flexDirection: 'column',
-          backgroundColor: '#f9fafb',
+          backgroundColor: '#000000', // 改为黑色背景
           minWidth: 0,
           marginRight: '4px' // 为右侧面板留出空间，避免遮挡
         }}>
           <div style={{
             height: '32px',
-            backgroundColor: '#e5e7eb',
-            color: '#374151',
+            backgroundColor: '#1a1a1a', // 深灰色背景
+            color: '#ffffff', // 白色文字
             fontSize: '12px',
             display: 'flex',
             alignItems: 'center',
             padding: '0 12px',
-            borderBottom: '1px solid #d1d5db',
+            borderBottom: '1px solid #333333', // 深色边框
             flexShrink: 0,
-            width: 'calc(100% - 4px)', // 减少宽度，避免延伸到右侧面板
+            width: 'calc(100% - 20px)', // 减少宽度，避免延伸到右侧面板
             position: 'relative',
             overflow: 'visible'
           }}>
@@ -313,8 +324,8 @@ export default function Editor({ }: EditorProps) {
               alignItems: 'center', 
               gap: '8px',
               whiteSpace: 'nowrap',
-              backgroundColor: '#e5e7eb',
-              padding: '0 4px'
+              backgroundColor: '#1a1a1a', // 与标题栏一致的深灰色背景
+              padding: '0px 4px'
             }}>
               <span style={{ fontSize: '12px' }}>节拍: 1/{beatDisplay}</span>
               <div style={{ width: '1px', height: '16px', backgroundColor: '#9ca3af' }}></div>
@@ -322,14 +333,23 @@ export default function Editor({ }: EditorProps) {
                 fontSize: '12px',
                 whiteSpace: 'nowrap'
               }}>
-                工具: {selectedTool === 'mouse' ? '选择' : selectedTool === 'single' ? '单键' : selectedTool === 'flick' ? '滑键' : selectedTool === 'slide' ? '滑条' : 'BPM'}
+                工具: {
+                  selectedTool === 'mouse' ? '选择' : 
+                  selectedTool === 'single' ? '单键' : 
+                  selectedTool === 'flick' ? '滑键' : 
+                  selectedTool === 'skill' ? '技能音符' :
+                  selectedTool === 'ldirectional' ? '左方向滑键' :
+                  selectedTool === 'rdirectional' ? '右方向滑键' :
+                  selectedTool === 'slide' ? '滑条' : 
+                  'BPM'
+                }
               </span>
             </div>
           </div>
           <div style={{ 
             flex: 1, 
             overflow: 'auto', 
-            backgroundColor: 'white',
+            backgroundColor: '#000000', // 改为黑色背景
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'flex-start',
@@ -339,7 +359,8 @@ export default function Editor({ }: EditorProps) {
               width: '100%', 
               maxWidth: '1200px',
               display: 'flex',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              backgroundColor: '#000000' // 确保包装容器也是黑色
             }}>
               <ChartCanvas 
                 notes={notes} 
@@ -435,7 +456,7 @@ export default function Editor({ }: EditorProps) {
           </div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ color: '#9ca3af' }}>音符数: {notes.filter(n => n.type !== "BPM").length}</div>
+          <div style={{ color: '#9ca3af' }}>音符总数: {notes.filter(n => n.type !== "BPM").length}</div>
         </div>
       </div>
     </div>

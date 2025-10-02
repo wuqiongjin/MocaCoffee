@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import type { ChartNote } from "../notes/Charts";
+import SVGSpriteIcon, { SVGNoteIcons, SVGSlideLineIcons } from './SVGSpriteIcon';
 
 interface ChartCanvasProps {
   notes: ChartNote[];
@@ -15,8 +16,18 @@ interface ChartCanvasProps {
 
 const LANES = 7;   // 七条轨道
 const BEATS = 64;  // 显示 64 小节，(后续根据音频长度自动计算)
-const BEAT_HEIGHT = 120; // 每个节拍的高度（基准，当 bpm=120 时为 BEAT_HEIGHT）
+const BEAT_HEIGHT = 160; // 每个节拍的高度（基准，当 bpm=120 时为 BEAT_HEIGHT）
 const LANE_WIDTH = 40; // 每个轨道的宽度
+
+// 音符大小配置 - 可以在这里统一调整所有音符的大小
+const NOTE_ICON_SIZE = 46; // 单键音符、技能键的大小
+const DIRECTIONAL_ICON_SIZE = 72; // 方向滑键音符的大小
+const SLIDE_ICON_SIZE = 40; // 滑条连接点的大小
+
+// 音符高度压缩配置 - 可以调整音符的高度压缩比例
+const NOTE_HEIGHT_SCALE = 0.5; // 单键音符、技能键的高度压缩比例，0.5表示压缩到50%的高度
+const DIRECTIONAL_HEIGHT_SCALE = 0.33; // 方向滑键的高度压缩比例，0.33表示压缩到33%的高度
+const SLIDE_HEIGHT_SCALE = 0.5; // 滑条连接点的高度压缩比例
 
 export default function ChartCanvas({
   notes,
@@ -165,7 +176,7 @@ export default function ChartCanvas({
         scrollContainer = scrollContainer.parentElement;
       }
       if (scrollContainer) {
-        const beatsToShow = 4.5; // 显示4.5个beat
+        const beatsToShow = 4; // 初始页面显示4个beat
         // 计算 0..beatsToShow 的累计高度
         const totalBeatHeight = beatToOffset(beatsToShow);
 
@@ -194,12 +205,70 @@ export default function ChartCanvas({
     // 这样可以保持用户当前的滚动位置
   }, [scale]);
 
+  // 处理方向键的组合和覆盖逻辑
+  const handleDirectionalNotePlacement = (beat: number, lane: number, subBeat: number, noteType: "LDirectional" | "RDirectional") => {
+    const newNotes = [...notes];
+
+    // 查找同一位置是否已有方向键
+    const existingNoteIndex = newNotes.findIndex(note =>
+      (note.type === "LDirectional" || note.type === "RDirectional") &&
+      'beat' in note && 'lane' in note && 'subBeat' in note &&
+      note.beat === beat && note.lane === lane && note.subBeat === subBeat
+    );
+
+    if (existingNoteIndex !== -1) {
+      const existingNote = newNotes[existingNoteIndex];
+
+      if (existingNote.type === noteType) {
+        // 同类型，组合处理
+        const note = existingNote as any;
+        if (note.length < 3) {
+          // 组合处理：增加长度
+          note.length += 1;
+        } else {
+          // 重置为1
+          note.length = 1;
+        }
+      } else {
+        // 不同类型，覆盖处理
+        newNotes[existingNoteIndex] = {
+          beat,
+          lane,
+          subBeat,
+          type: noteType,
+          length: 1
+        };
+      }
+    } else {
+      // 没有现有音符，创建新的方向键
+      newNotes.push({
+        beat,
+        lane,
+        subBeat,
+        type: noteType,
+        length: 1
+      });
+    }
+
+    setNotes(newNotes);
+  };
+
+
   const handleClick = (beat: number, lane: number, subBeat: number = 0) => {
     if (selectedTool === "mouse") {
       // 鼠标状态下点击音符进行选择
-      const noteIndex = notes.findIndex(note =>
-        note.type === "Single" && note.beat === beat && note.lane === lane && note.subBeat === subBeat
-      );
+      const noteIndex = notes.findIndex(note => {
+        if (note.type === "Single" || note.type === "LDirectional" || note.type === "RDirectional") {
+          return note.beat === beat && note.lane === lane && note.subBeat === subBeat;
+        } else if (note.type === "Slide" || note.type === "Long") {
+          // 检查滑条/长按音符的连接点
+          return note.connections.some(conn =>
+            conn.beat === beat && conn.lane === lane && conn.subBeat === subBeat
+          );
+        }
+        return false;
+      });
+
       if (noteIndex !== -1) {
         if (isCombinationMode) {
           // 组合模式下，如果音符已选中，则取消选中；否则选中
@@ -229,6 +298,14 @@ export default function ChartCanvas({
       setNotes([...notes, { beat: preciseBeat, lane, subBeat: preciseSubBeat, type: "Single" }]);
     } else if (selectedTool === "flick") {
       setNotes([...notes, { beat: preciseBeat, lane, subBeat: preciseSubBeat, type: "Single", flick: true }]);
+    } else if (selectedTool === "skill") {
+      setNotes([...notes, { beat: preciseBeat, lane, subBeat: preciseSubBeat, type: "Single", skill: true }]);
+    } else if (selectedTool === "ldirectional") {
+      // 处理左方向键的组合和覆盖逻辑
+      handleDirectionalNotePlacement(preciseBeat, lane, preciseSubBeat, "LDirectional");
+    } else if (selectedTool === "rdirectional") {
+      // 处理右方向键的组合和覆盖逻辑
+      handleDirectionalNotePlacement(preciseBeat, lane, preciseSubBeat, "RDirectional");
     } else if (selectedTool === "bpm") {
       const bpm = parseInt(prompt("请输入 BPM 数值") || "0", 10);
       if (!isNaN(bpm) && bpm > 0) {
@@ -264,6 +341,22 @@ export default function ChartCanvas({
       } else {
         setSlideBuffer(newBuffer);
       }
+    } else if (selectedTool === "long") {
+      // LongNote 与 SlideNote 等价
+      const newBuffer = [...slideBuffer, { beat: preciseBeat, lane, subBeat: preciseSubBeat }];
+      if (newBuffer.length === 2) {
+        // 检查长按音符是否横向放置
+        const [p1, p2] = newBuffer;
+        if (p1.beat === p2.beat && p1.subBeat === p2.subBeat) {
+          alert("长按音符不允许横向放置！");
+          setSlideBuffer([]);
+          return;
+        }
+        setNotes([...notes, { type: "Long", connections: newBuffer }]);
+        setSlideBuffer([]);
+      } else {
+        setSlideBuffer(newBuffer);
+      }
     }
   };
 
@@ -294,8 +387,9 @@ export default function ChartCanvas({
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
 
-      // 计算鼠标位置对应的轨道和节拍
-      const lane = Math.floor(x / (LANE_WIDTH * scale));
+      // 计算鼠标位置对应的轨道和节拍（考虑边框偏移）
+      const adjustedX = x - borderTotalWidth;
+      const lane = Math.floor(adjustedX / (LANE_WIDTH * scale));
 
       // 反向计算：从鼠标位置计算 beat
       const relativeY = y - offsetY;
@@ -346,24 +440,23 @@ export default function ChartCanvas({
 
       const selectedIndices: number[] = [];
       notes.forEach((note, index) => {
-        if (note.type === "Single") {
-          const noteX = note.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2; // 音符中心X位置
+        if (note.type === "Single" || note.type === "LDirectional" || note.type === "RDirectional") {
+          const noteX = getNoteX(note.lane); // 音符中心X位置
           const noteY = getNoteY(note.beat, note.subBeat || 0); // 音符中心Y位置
 
           if (noteX >= minX && noteX <= maxX && noteY >= minY && noteY <= maxY) {
             selectedIndices.push(index);
           }
-        } else if (note.type === "Slide") {
-          // 检查滑条的两个端点是否在选择区域内
-          const [p1, p2] = note.connections;
-          const x1 = p1.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
-          const y1 = getNoteY(p1.beat, p1.subBeat || 0);
-          const x2 = p2.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
-          const y2 = getNoteY(p2.beat, p2.subBeat || 0);
+        } else if (note.type === "Slide" || note.type === "Long") {
+          // 检查滑条/长按音符的连接点是否在选择区域内
+          const hasVisibleConnection = note.connections.some(conn => {
+            if (conn.hidden) return false; // 跳过隐藏连接点
+            const x = getNoteX(conn.lane);
+            const y = getNoteY(conn.beat, conn.subBeat || 0);
+            return x >= minX && x <= maxX && y >= minY && y <= maxY;
+          });
 
-          // 如果滑条的任一端点在选择区域内，则选中整个滑条
-          if ((x1 >= minX && x1 <= maxX && y1 >= minY && y1 <= maxY) ||
-            (x2 >= minX && x2 <= maxX && y2 >= minY && y2 <= maxY)) {
+          if (hasVisibleConnection) {
             selectedIndices.push(index);
           }
         }
@@ -383,17 +476,29 @@ export default function ChartCanvas({
   const renderGrid = () => {
     const lines = [];
     const totalHeight = beatToOffset(BEATS);
+
+    // 添加轨道内背景
+    lines.push(
+      <rect
+        key="track-inner-background"
+        x={borderTotalWidth}
+        y={0}
+        width={LANES * LANE_WIDTH * scale}
+        height={totalHeight}
+        fill="#00000A" // 轨道内背景样式
+      />
+    );
     // 绘制水平线（节拍线）- 自下往上绘制
     for (let beat = 0; beat < BEATS; beat++) {
       const y = totalHeight - beatToOffset(beat); // beat 的顶部
       lines.push(
         <line
           key={`beat-${beat}`}
-          x1={0}
+          x1={borderTotalWidth}
           y1={y}
-          x2={LANES * LANE_WIDTH * scale}
+          x2={borderTotalWidth + LANES * LANE_WIDTH * scale}
           y2={y}
-          stroke="#ccc"
+          stroke="#444444"
           strokeWidth={1}
         />
       );
@@ -405,11 +510,11 @@ export default function ChartCanvas({
         lines.push(
           <line
             key={`subbeat-${beat}-${subBeat}`}
-            x1={0}
+            x1={borderTotalWidth}
             y1={subY}
-            x2={LANES * LANE_WIDTH * scale}
+            x2={borderTotalWidth + LANES * LANE_WIDTH * scale}
             y2={subY}
-            stroke="#ddd"
+            stroke="#222222"
             strokeWidth={0.5}
             strokeDasharray="2,2"
           />
@@ -419,17 +524,55 @@ export default function ChartCanvas({
 
     // 绘制垂直线（轨道线）
     for (let lane = 0; lane <= LANES; lane++) {
-      const x = lane * LANE_WIDTH * scale;
-      lines.push(
-        <line
-          key={`lane-${lane}`}
-          x1={x}
-          y1={0}
-          x2={x}
-          y2={totalHeight}
-          stroke="#aaa"
-        />
-      );
+      const x = lane * LANE_WIDTH * scale + borderTotalWidth; // 向右偏移边框宽度
+
+      // 外侧轨道（第0条和第7条线）使用特殊的渐变边框
+      if (lane === 0 || lane === LANES) {
+        // 创建多层边框效果：#004C4C (1px), #004D4D (5px), #009898 (1px), #00A6A6 (1px), #008186 (1px), #003D44 (1px)
+        const borderColors = ['#004C4C', '#004D4D', '#009898', '#00A6A6', '#008186', '#003D44'];
+        const borderWidths = [1, 4, 1, 1, 1, 1];
+        let currentOffset = 0;
+
+        // 对于右侧轨道（lane === LANES），需要向左绘制边框
+        const isRightBorder = lane === LANES;
+
+        borderColors.forEach((color, index) => {
+          const width = borderWidths[index] * scale;
+          // 调试信息
+          console.log(`Lane ${lane}, Border ${index}: color=${color}, width=${width}, offset=${currentOffset}, isRight=${isRightBorder}`);
+
+          // 向外绘制边框：
+          // 左侧轨道：向左扩展（负方向）
+          // 右侧轨道：向右扩展（正方向）
+          const rectX = isRightBorder ? (x + currentOffset) : (x - currentOffset - width);
+
+          lines.push(
+            <rect
+              key={`lane-border-${lane}-${index}`}
+              x={rectX}
+              y={0}
+              width={width}
+              height={totalHeight}
+              fill={color}
+              stroke="none"
+            />
+          );
+          currentOffset += width;
+        });
+      } else {
+        // 内部轨道线使用较暗的颜色
+        lines.push(
+          <line
+            key={`lane-${lane}`}
+            x1={x}
+            y1={0}
+            x2={x}
+            y2={totalHeight}
+            stroke="#333333"
+            strokeWidth={1}
+          />
+        );
+      }
     }
 
     return lines;
@@ -437,16 +580,26 @@ export default function ChartCanvas({
 
   // 重要：共享的总高度与宽度（用于左侧定位与SVG高度一致）
   const totalHeight = beatToOffset(BEATS);
-  const svgWidth = LANES * LANE_WIDTH * scale;
+
+  // 计算边框总宽度：[1, 4, 1, 1, 1, 1] = 9px (未缩放)
+  const borderTotalWidth = (1 + 4 + 1 + 1 + 1 + 1) * scale;
+
+  // 扩大SVG宽度以容纳左右两侧的边框
+  const svgWidth = LANES * LANE_WIDTH * scale + borderTotalWidth * 2;
+
+  // 辅助函数：计算音符的正确X坐标（包含边框偏移）
+  const getNoteX = (lane: number) => {
+    return borderTotalWidth + lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
+  };
 
   // 收集所有BPM标记用于在画布外部显示
   const bpmMarks = notes.filter(note => note.type === "BPM");
 
   return (
-    <div className="w-full h-full overflow-auto">
+    <div className="w-full h-full overflow-auto" style={{ backgroundColor: '#000000' }}>
       {/* 用一个统一的内边距容器（可保留或去掉 padding，根据你的UI需求）
           关键：下面的 innerWrapper 会应用 translateY(offsetY)，使 BPM 列和 SVG 同步移动 */}
-      <div className="p-4">
+      <div className="p-4" style={{ backgroundColor: '#000000' }}>
         <div
           // 这个 wrapper 包含左侧 BPM 列和 SVG 画布，translateY 只应用到这里
           style={{
@@ -464,7 +617,8 @@ export default function ChartCanvas({
               position: 'relative',
               // pointerEvents: 'none' 确保不会拦截鼠标事件（比如放置音符）
               pointerEvents: 'none',
-              height: totalHeight
+              height: totalHeight,
+              backgroundColor: '#000000' // BMP列背景也设为黑色
             }}
           >
             {/* 内层 relative 容器用于让每个 BPM 数字用 absolute top: ypx 定位 */}
@@ -483,8 +637,9 @@ export default function ChartCanvas({
                       transform: 'translateY(-50%)',
                       fontWeight: 700,
                       fontSize: 12,
-                      color: '#c00',
-                      whiteSpace: 'nowrap'
+                      color: '#ff6666', // 调整为更亮的红色，在黑色背景下更可见
+                      whiteSpace: 'nowrap',
+                      textShadow: '1px 1px 2px rgba(0,0,0,0.8)' // 添加文字阴影增强可读性
                     }}
                   >
                     BPM {(note as any).bpm}
@@ -495,16 +650,17 @@ export default function ChartCanvas({
           </div>
 
           {/* 画布区域 */}
-          <div style={{ position: 'relative' }}>
+          <div style={{ position: 'relative', backgroundColor: '#000000' }}>
             <svg
               ref={canvasRef}
-              className="border bg-white"
+              className="border"
               width={svgWidth}
               height={totalHeight}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               style={{
+                backgroundColor: '#000000', // 轨道外背景样式
                 cursor: dragging ? "grabbing" : (isSelecting ? "crosshair" : "default"),
                 display: 'block' // 避免 inline svg 造成 baseline 问题
               }}
@@ -519,46 +675,144 @@ export default function ChartCanvas({
                 if (note.type === "Single") {
                   const subBeat = note.subBeat || 0;
                   const y = getNoteY(note.beat, subBeat);
-                  const x = note.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
+                  const x = getNoteX(note.lane);
+                  const iconSize = NOTE_ICON_SIZE * scale; // 音符图标大小
+                  const iconHeight = iconSize * NOTE_HEIGHT_SCALE; // 压缩后的高度
+
+                  // 根据音符类型选择对应的sprite图标
+                  let iconConfig = SVGNoteIcons.tap; // 默认单键音符
+                  if (note.flick) {
+                    iconConfig = SVGNoteIcons.flick;
+                  } else if (note.skill) {
+                    iconConfig = SVGNoteIcons.skill;
+                  }
 
                   return (
                     <g key={idx}>
-                      <line
-                        x1={x - 15 * scale}
-                        y1={y}
-                        x2={x + 15 * scale}
-                        y2={y}
-                        stroke={note.flick ? "red" : "blue"}
-                        strokeWidth={8 * scale}
-                        strokeLinecap="round"
+                      {/* 使用sprite图标替换简单的线条 */}
+                      <SVGSpriteIcon
+                        {...iconConfig}
+                        svgX={x}
+                        svgY={y}
+                        svgSize={iconSize}
+                        svgWidth={iconSize}
+                        svgHeight={iconHeight}
+                        scale={scale}
                         onClick={() => handleClick(note.beat, note.lane, subBeat)}
                       />
+
+                      {/* 选中状态 - 使用黄色边框 */}
                       {isSelected && (
-                        <line
-                          x1={x - 18 * scale}
-                          y1={y}
-                          x2={x + 18 * scale}
-                          y2={y}
+                        <circle
+                          cx={x}
+                          cy={y}
+                          r={iconSize / 2 + 4}
+                          fill="none"
                           stroke="yellow"
-                          strokeWidth={12 * scale}
-                          strokeLinecap="round"
-                          opacity={0.7}
+                          strokeWidth={3 * scale}
+                          opacity={0.8}
                         />
                       )}
-                      {/* 滑键标记 */}
-                      {note.flick && (
-                        <text
-                          x={x}
-                          y={y - 20 * scale}
-                          fontSize={`${12 * scale}`}
-                          fill="red"
-                          textAnchor="middle"
-                          dominantBaseline="middle"
-                          fontWeight="bold"
-                        >
-                          F
-                        </text>
+                    </g>
+                  );
+                } else if (note.type === "LDirectional") {
+                  const subBeat = note.subBeat || 0;
+                  const y = getNoteY(note.beat, subBeat);
+                  const x = getNoteX(note.lane);
+                  const iconSize = DIRECTIONAL_ICON_SIZE * scale; // 音符图标大小
+                  const iconHeight = iconSize * DIRECTIONAL_HEIGHT_SCALE; // 压缩后的高度
+
+                  return (
+                    <g key={idx}>
+                      {/* 使用左方向滑键sprite图标 */}
+                      <SVGSpriteIcon
+                        {...SVGNoteIcons.leftFlick}
+                        svgX={x}
+                        svgY={y}
+                        svgSize={iconSize}
+                        svgWidth={iconSize}
+                        svgHeight={iconHeight}
+                        scale={scale}
+                        onClick={() => handleClick(note.beat, note.lane, subBeat)}
+                      />
+
+                      {/* 选中状态 */}
+                      {isSelected && (
+                        <circle
+                          cx={x}
+                          cy={y}
+                          r={iconSize / 2 + 4}
+                          fill="none"
+                          stroke="yellow"
+                          strokeWidth={3 * scale}
+                          opacity={0.8}
+                        />
                       )}
+
+                      {/* 长度标记 */}
+                      <text
+                        x={x}
+                        y={y - 30 * scale}
+                        fontSize={`${10 * scale}`}
+                        fill="white"
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fontWeight="bold"
+                        stroke="black"
+                        strokeWidth={1}
+                      >
+                        L{note.length}
+                      </text>
+                    </g>
+                  );
+                } else if (note.type === "RDirectional") {
+                  const subBeat = note.subBeat || 0;
+                  const y = getNoteY(note.beat, subBeat);
+                  const x = getNoteX(note.lane);
+                  const iconSize = DIRECTIONAL_ICON_SIZE * scale; // 音符图标大小
+                  const iconHeight = iconSize * DIRECTIONAL_HEIGHT_SCALE; // 压缩后的高度
+
+                  return (
+                    <g key={idx}>
+                      {/* 使用右方向滑键sprite图标 */}
+                      <SVGSpriteIcon
+                        {...SVGNoteIcons.rightFlick}
+                        svgX={x}
+                        svgY={y}
+                        svgSize={iconSize}
+                        svgWidth={iconSize}
+                        svgHeight={iconHeight}
+                        scale={scale}
+                        onClick={() => handleClick(note.beat, note.lane, subBeat)}
+                      />
+
+                      {/* 选中状态 */}
+                      {isSelected && (
+                        <circle
+                          cx={x}
+                          cy={y}
+                          r={iconSize / 2 + 4}
+                          fill="none"
+                          stroke="yellow"
+                          strokeWidth={3 * scale}
+                          opacity={0.8}
+                        />
+                      )}
+
+                      {/* 长度标记 */}
+                      <text
+                        x={x}
+                        y={y - 30 * scale}
+                        fontSize={`${10 * scale}`}
+                        fill="white"
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fontWeight="bold"
+                        stroke="black"
+                        strokeWidth={1}
+                      >
+                        R{note.length}
+                      </text>
                     </g>
                   );
                 } else if (note.type === "BPM") {
@@ -566,9 +820,9 @@ export default function ChartCanvas({
                   return (
                     <g key={idx}>
                       <line
-                        x1={0}
+                        x1={borderTotalWidth}
                         y1={y}
-                        x2={svgWidth}
+                        x2={borderTotalWidth + LANES * LANE_WIDTH * scale}
                         y2={y}
                         stroke="red"
                         strokeWidth={3}
@@ -577,29 +831,93 @@ export default function ChartCanvas({
                       {/* 注意：不在 SVG 内绘制 BPM 数字 */}
                     </g>
                   );
-                } else if (note.type === "Slide") {
-                  const [p1, p2] = note.connections;
-                  const subBeat1 = p1.subBeat || 0;
-                  const subBeat2 = p2.subBeat || 0;
-                  const y1 = getNoteY(p1.beat, subBeat1);
-                  const y2 = getNoteY(p2.beat, subBeat2);
-                  const x1 = p1.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
-                  const x2 = p2.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
+                } else if (note.type === "Slide" || note.type === "Long") {
+                  const connections = note.connections;
+                  if (connections.length < 2) return null;
+
+                  const iconSize = SLIDE_ICON_SIZE * scale; // 连接点图标大小
+                  const iconHeight = iconSize * SLIDE_HEIGHT_SCALE; // 压缩后的高度
+
+                  // 渲染连接线 - 使用sprite连接线
+                  const lines = [];
+                  for (let i = 0; i < connections.length - 1; i++) {
+                    const conn1 = connections[i];
+                    const conn2 = connections[i + 1];
+                    const subBeat1 = conn1.subBeat || 0;
+                    const subBeat2 = conn2.subBeat || 0;
+                    const y1 = getNoteY(conn1.beat, subBeat1);
+                    const y2 = getNoteY(conn2.beat, subBeat2);
+                    const x1 = getNoteX(conn1.lane);
+                    const x2 = getNoteX(conn2.lane);
+
+                    // 计算连接线的中心点和角度
+                    const centerX = (x1 + x2) / 2;
+                    const centerY = (y1 + y2) / 2;
+                    const length = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+                    const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI);
+
+                    lines.push(
+                      <g key={`line-${i}`} transform={`translate(${centerX}, ${centerY}) rotate(${angle})`}>
+                        <SVGSpriteIcon
+                          {...(note.type === "Long" ? SVGSlideLineIcons.longLine : SVGSlideLineIcons.line)}
+                          svgX={0}
+                          svgY={0}
+                          svgSize={length}
+                        />
+                      </g>
+                    );
+                  }
+
+                  // 渲染连接点 - 使用sprite图标
+                  const points = connections.map((conn, i) => {
+                    const subBeat = conn.subBeat || 0;
+                    const y = getNoteY(conn.beat, subBeat);
+                    const x = getNoteX(conn.lane);
+                    const isHidden = conn.hidden;
+
+                    // 根据连接点类型选择sprite图标
+                    let iconConfig = SVGNoteIcons.tap; // 默认单键音符
+                    if (conn.flick) {
+                      iconConfig = SVGNoteIcons.flick;
+                    } else if (conn.skill) {
+                      iconConfig = SVGNoteIcons.skill;
+                    }
+
+                    return (
+                      <g key={`point-${i}`}>
+                        {!isHidden && (
+                          <SVGSpriteIcon
+                            {...iconConfig}
+                            svgX={x}
+                            svgY={y}
+                            svgSize={iconSize}
+                            svgWidth={iconSize}
+                            svgHeight={iconHeight}
+                            scale={scale}
+                            onClick={() => handleClick(conn.beat, conn.lane, subBeat)}
+                          />
+                        )}
+                      </g>
+                    );
+                  });
 
                   return (
                     <g key={idx}>
-                      <line
-                        x1={x1}
-                        y1={y1}
-                        x2={x2}
-                        y2={y2}
-                        stroke="purple"
-                        strokeWidth={6 * scale}
-                        strokeLinecap="round"
-                      />
-                      {/* 滑条端点 */}
-                      <circle cx={x1} cy={y1} r={6 * scale} fill="purple" />
-                      <circle cx={x2} cy={y2} r={6 * scale} fill="purple" />
+                      {lines}
+                      {points}
+                      {isSelected && (
+                        <rect
+                          x={Math.min(...connections.map(c => c.lane * LANE_WIDTH * scale)) - 10 * scale}
+                          y={Math.min(...connections.map(c => getNoteY(c.beat, c.subBeat || 0))) - 10 * scale}
+                          width={Math.max(...connections.map(c => c.lane * LANE_WIDTH * scale)) - Math.min(...connections.map(c => c.lane * LANE_WIDTH * scale)) + 20 * scale}
+                          height={Math.max(...connections.map(c => getNoteY(c.beat, c.subBeat || 0))) - Math.min(...connections.map(c => getNoteY(c.beat, c.subBeat || 0))) + 20 * scale}
+                          fill="none"
+                          stroke="yellow"
+                          strokeWidth={2 * scale}
+                          strokeDasharray="5,5"
+                          opacity={0.7}
+                        />
+                      )}
                     </g>
                   );
                 }
@@ -610,7 +928,7 @@ export default function ChartCanvas({
               {slideBuffer.map((point, idx) => {
                 const subBeat = point.subBeat || 0;
                 const y = getNoteY(point.beat, subBeat);
-                const x = point.lane * LANE_WIDTH * scale + LANE_WIDTH * scale / 2;
+                const x = getNoteX(point.lane);
 
                 return (
                   <circle
@@ -640,7 +958,7 @@ export default function ChartCanvas({
 
               {/* 点击放置层 - 支持精确beat位置 */}
               {Array.from({ length: LANES }).map((_, lane) => {
-                const laneX = lane * LANE_WIDTH * scale;
+                const laneX = borderTotalWidth + lane * LANE_WIDTH * scale;
                 return (
                   <rect
                     key={`lane-${lane}`}
