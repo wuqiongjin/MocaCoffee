@@ -855,7 +855,7 @@ export default function ChartCanvas({
                   // 统一使用普通滑条连接线
                   const lineIcon = SVGSlideLineIcons.slideLine;
 
-                  // 渲染连接线 - 使用sprite连接线
+                  // 渲染连接线 - 使用四边形填充法
                   const lines = [];
                   for (let i = 0; i < connections.length - 1; i++) {
                     const conn1 = connections[i];
@@ -867,23 +867,56 @@ export default function ChartCanvas({
                     const x1 = getNoteX(conn1.lane);
                     const x2 = getNoteX(conn2.lane);
 
-                    // 计算连接线的中心点和角度
-                    const centerX = (x1 + x2) / 2;
-                    const centerY = (y1 + y2) / 2;
-                    const length = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
-                    // 调整角度：
-                    const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI) - 90;
+                    // 计算四边形的四个顶点
+                    // 轨道宽度的一半
+                    const halfLaneWidth = (LANE_WIDTH * scale) / 2;
+
+                    // 第一个连接点的左右边界
+                    const left1 = x1 - halfLaneWidth;
+                    const right1 = x1 + halfLaneWidth;
+
+                    // 第二个连接点的左右边界
+                    const left2 = x2 - halfLaneWidth;
+                    const right2 = x2 + halfLaneWidth;
+
+                    // 四边形的四个顶点（按顺序：左上、右上、右下、左下）
+                    const quadPoints = [
+                      [left1, y1],   // 左上
+                      [right1, y1],  // 右上
+                      [right2, y2],  // 右下
+                      [left2, y2]    // 左下
+                    ];
+
+                    // 计算四边形的中心点和尺寸
+                    const minX = Math.min(left1, right1, left2, right2);
+                    const maxX = Math.max(left1, right1, left2, right2);
+                    const minY = Math.min(y1, y2);
+                    const maxY = Math.max(y1, y2);
+                    const centerX = (minX + maxX) / 2;
+                    const centerY = (minY + maxY) / 2;
+                    const width = maxX - minX;
+                    const height = maxY - minY;
 
                     lines.push(
-                      <g key={`line-${i}`} transform={`translate(${centerX}, ${centerY}) rotate(${angle})`}>
-                        <SVGSpriteIcon
-                          {...lineIcon}
-                          svgX={0}
-                          svgY={0}
-                          svgSize={length}
-                          svgWidth={LANE_WIDTH * scale}
-                          svgHeight={length * scale} // 连接线高度，可以根据需要调整
-                        />
+                      <g key={`line-${i}`}>
+                        {/* 使用clipPath来裁剪slideLine图标到四边形区域 */}
+                        <defs>
+                          <clipPath id={`slideClip-${idx}-${i}`}>
+                            <polygon
+                              points={quadPoints.map(([x, y]) => `${x},${y}`).join(' ')}
+                            />
+                          </clipPath>
+                        </defs>
+                        <g clipPath={`url(#slideClip-${idx}-${i})`}>
+                          <SVGSpriteIcon
+                            {...lineIcon}
+                            svgX={centerX}
+                            svgY={centerY}
+                            svgSize={Math.max(width, height)}
+                            svgWidth={width}
+                            svgHeight={height}
+                          />
+                        </g>
                       </g>
                     );
                   }
