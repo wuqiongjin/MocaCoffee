@@ -16,18 +16,18 @@ interface ChartCanvasProps {
 
 const LANES = 7;   // 七条轨道
 const BEATS = 64;  // 显示 64 小节，(后续根据音频长度自动计算)
-const BEAT_HEIGHT = 160; // 每个节拍的高度（基准，当 bpm=120 时为 BEAT_HEIGHT）
-const LANE_WIDTH = 40; // 每个轨道的宽度
+const BEAT_HEIGHT = 220; // 每个节拍的高度（基准，当 bpm=120 时为 BEAT_HEIGHT）
+const LANE_WIDTH = 30; // 每个轨道的宽度
 
 // 音符大小配置 - 可以在这里统一调整所有音符的大小
-const NOTE_ICON_SIZE = 46; // 单键音符、技能键的大小
-const DIRECTIONAL_ICON_SIZE = 72; // 方向滑键音符的大小
-const SLIDE_ICON_SIZE = 46; // 滑条连接点的大小
+const NOTE_ICON_SIZE = 36; // 单键音符、技能键的大小
+const DIRECTIONAL_ICON_SIZE = 45; // 方向滑键音符的大小
+const SLIDE_ICON_SIZE = 36; // 滑条连接点的大小
 
 // 音符高度压缩配置 - 可以调整音符的高度压缩比例
-const NOTE_HEIGHT_SCALE = 0.5; // 单键音符、技能键的高度压缩比例，0.5表示压缩到50%的高度
+const NOTE_HEIGHT_SCALE = 0.6; // 单键音符、技能键的高度压缩比例，0.5表示压缩到50%的高度
 const DIRECTIONAL_HEIGHT_SCALE = 0.33; // 方向滑键的高度压缩比例，0.33表示压缩到33%的高度
-const SLIDE_HEIGHT_SCALE = 0.5; // 滑条连接点的高度压缩比例
+const SLIDE_HEIGHT_SCALE = 0.6; // 滑条连接点的高度压缩比例
 
 export default function ChartCanvas({
   notes,
@@ -897,6 +897,11 @@ export default function ChartCanvas({
                     const width = maxX - minX;
                     const height = maxY - minY;
 
+                    // 确保slideLine图标大小完全包裹四边形
+                    // 计算四边形的对角线长度，确保图标大小足够
+                    const diagonalLength = Math.sqrt(width * width + height * height);
+                    const iconSize = Math.max(diagonalLength, Math.max(width, height)) * 1.0; // 增加20%的边距确保完全包裹
+
                     lines.push(
                       <g key={`line-${i}`}>
                         {/* 使用clipPath来裁剪slideLine图标到四边形区域 */}
@@ -912,8 +917,8 @@ export default function ChartCanvas({
                             {...lineIcon}
                             svgX={centerX}
                             svgY={centerY}
-                            svgSize={Math.max(width, height)}
-                            svgWidth={width}
+                            svgSize={iconSize}
+                            svgWidth={iconSize}
                             svgHeight={height}
                           />
                         </g>

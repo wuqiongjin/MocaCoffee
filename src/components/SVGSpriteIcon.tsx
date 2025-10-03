@@ -210,7 +210,7 @@ export const DecoratorIcons = {
         y: -53.333,
         width: 664.935,
         height: 995.333,
-        offsetX: 9,  // 相对于主图标的X偏移 (向右偏移9px)
+        offsetX: 7,  // 相对于主图标的X偏移 (向右偏移9px)
         offsetY: -12, // 相对于主图标的Y偏移（向上偏移12px）
         scale: 1.0, // 装饰器整体缩放比例
         scaleX: 1.0, // X轴缩放比例（宽度保持不变）
@@ -265,6 +265,7 @@ export const CompositeNoteConfigs = {
         decorators: [
             {
                 ...DecoratorIcons.LDirectionalFlickDecorator,
+                offsetX: -18,
                 zIndex: 10 // 设置更高的图层优先级
             }
         ]
@@ -275,13 +276,13 @@ export const CompositeNoteConfigs = {
         decorators: [
             {
                 ...BaseSpriteIcons.leftFlick,
-                offsetX: -40, // 第二个leftFlick向左偏移
+                offsetX: -30, // 第二个leftFlick向左偏移 (偏移数值 = 轨道宽度)
                 offsetY: 0,
                 scale: 0.9
             },
             {
                 ...DecoratorIcons.LDirectionalFlickDecorator,
-                offsetX: -68,
+                offsetX: -48,
                 offsetY: 0,
                 scale: 1.0,
                 zIndex: 10 // 设置更高的图层优先级
@@ -294,19 +295,19 @@ export const CompositeNoteConfigs = {
         decorators: [
             {
                 ...BaseSpriteIcons.leftFlick,
-                offsetX: -40, // 第二个leftFlick向左偏移
+                offsetX: -30, // 第二个leftFlick向左偏移 (偏移数值 = 轨道宽度)
                 offsetY: 0,
                 scale: 0.9
             },
             {
                 ...BaseSpriteIcons.leftFlick,
-                offsetX: -80, // 第三个leftFlick更向左偏移
+                offsetX: -60, // 第三个leftFlick更向左偏移
                 offsetY: 0,
                 scale: 0.9
             },
             {
                 ...DecoratorIcons.LDirectionalFlickDecorator,
-                offsetX: -108,
+                offsetX: -78,
                 offsetY: 0,
                 scale: 1.0,
                 zIndex: 10 // 设置更高的图层优先级
@@ -321,6 +322,7 @@ export const CompositeNoteConfigs = {
         decorators: [
             {
                 ...DecoratorIcons.RDirectionalFlickDecorator,
+                offsetX: 18,
                 zIndex: 10 // 设置更高的图层优先级
             }
         ]
@@ -331,13 +333,13 @@ export const CompositeNoteConfigs = {
         decorators: [
             {
                 ...BaseSpriteIcons.rightFlick,
-                offsetX: 40, // 第二个rightFlick向右偏移
+                offsetX: 30, // 第二个rightFlick向右偏移 (偏移数值 = 轨道宽度)
                 offsetY: 0,
                 scale: 0.9
             },
             {
                 ...DecoratorIcons.RDirectionalFlickDecorator,
-                offsetX: 68,
+                offsetX: 48,
                 offsetY: 0,
                 scale: 1.0,
                 zIndex: 10 // 设置更高的图层优先级
@@ -350,19 +352,19 @@ export const CompositeNoteConfigs = {
         decorators: [
             {
                 ...BaseSpriteIcons.rightFlick,
-                offsetX: 40, // 第二个rightFlick向右偏移
+                offsetX: 30, // 第二个rightFlick向右偏移 (偏移数值 = 轨道宽度)
                 offsetY: 0,
                 scale: 0.9
             },
             {
                 ...BaseSpriteIcons.rightFlick,
-                offsetX: 80, // 第三个rightFlick更向右偏移
+                offsetX: 60, // 第三个rightFlick更向右偏移
                 offsetY: 0,
                 scale: 0.9
             },
             {
                 ...DecoratorIcons.RDirectionalFlickDecorator,
-                offsetX: 108,
+                offsetX: 78,
                 offsetY: 0,
                 scale: 1.0,
                 zIndex: 10 // 设置更高的图层优先级
