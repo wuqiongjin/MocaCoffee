@@ -1,4 +1,4 @@
-import type { ChartNote, SingleNote, LDirectionalNote, RDirectionalNote, SlideNote, LongNote, BpmNote } from '../notes/Charts';
+import type { ChartNote, SingleNote, LDirectionalNote, RDirectionalNote, SlideNote, BpmNote } from '../notes/Charts';
 
 // 谱面代码类型定义
 export interface ChartCodeBPM {
@@ -38,7 +38,7 @@ export interface ChartCodeSlide {
 export type ChartCodeNote = ChartCodeBPM | ChartCodeSingle | ChartCodeDirectional | ChartCodeSlide;
 
 /**
- * 将编辑器音符转换为谱面代码
+ * 将谱面音符的编辑操作转换为谱面代码
  */
 export function convertNotesToChartCode(notes: ChartNote[]): ChartCodeNote[] {
     const chartCode: ChartCodeNote[] = [];
@@ -58,10 +58,8 @@ export function convertNotesToChartCode(notes: ChartNote[]): ChartCodeNote[] {
                 chartCode.push(convertRDirectionalNote(note as RDirectionalNote));
                 break;
             case "Slide":
-                chartCode.push(convertSlideNote(note as SlideNote));
-                break;
             case "Long":
-                chartCode.push(convertLongNote(note as LongNote));
+                chartCode.push(convertSlideNote(note as SlideNote));
                 break;
             case "System":
                 // 系统音符暂不转换
@@ -180,12 +178,6 @@ function convertSlideNote(note: SlideNote): ChartCodeSlide {
     };
 }
 
-/**
- * 转换长按音符（与滑条相同）
- */
-function convertLongNote(note: LongNote): ChartCodeSlide {
-    return convertSlideNote(note as SlideNote);
-}
 
 /**
  * 将谱面代码转换为JSON字符串
@@ -234,7 +226,7 @@ export function convertChartCodeToNotes(chartCode: ChartCodeNote[]): ChartNote[]
                 notes.push(singleNote);
                 break;
 
-            case "Directional":
+            case "Directional": {
                 const directionalNote = codeNote.direction === "Left"
                     ? {
                         beat: codeNote.beat,
@@ -254,8 +246,9 @@ export function convertChartCodeToNotes(chartCode: ChartCodeNote[]): ChartNote[]
                 }
                 notes.push(directionalNote);
                 break;
+            }
 
-            case "Slide":
+            case "Slide": {
                 const slideNote: SlideNote = {
                     type: "Slide",
                     connections: codeNote.connections.map(conn => ({
@@ -267,6 +260,7 @@ export function convertChartCodeToNotes(chartCode: ChartCodeNote[]): ChartNote[]
                 };
                 notes.push(slideNote);
                 break;
+            }
         }
     }
 
@@ -338,7 +332,7 @@ export function validateChartCode(chartCode: ChartCodeNote[]): { valid: boolean;
                 break;
 
             default:
-                errors.push(`音符 ${i}: 未知的 type "${note.type}"`);
+                errors.push(`音符 ${i}: 未知的 type "${(note as any).type}"`);
         }
     }
 

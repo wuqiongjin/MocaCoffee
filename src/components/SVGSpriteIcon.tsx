@@ -400,8 +400,8 @@ export const SVGNoteIcons = CompositeNoteConfigs;
 
 // 滑条连接线配置
 export const SVGSlideLineIcons = {
-    // 滑条连接线
-    line: {
+    // 普通连接线
+    slideLine: {
         src: '/assets/skins/longNoteLine.png',
         x: 0,
         y: 0,
@@ -409,12 +409,30 @@ export const SVGSlideLineIcons = {
         height: 100
     },
 
-    // 长音符连接线
-    longLine: {
+    // SP滑条连接线 (Special滑条连接线)
+    SPSlideLine: {
         src: '/assets/skins/longNoteLine2.png',
         x: 0,
         y: 0,
         width: 100,
         height: 100
+    },
+
+    // pathway音符 (滑条途径结点音符样式)
+    pathway: {
+        src: '/assets/skins/RhythmGameSprites.png',
+        x: -100.247,
+        y: -242.333,
+        width: 664.935,
+        height: 853.333
+    },
+
+    // endpoint音符 (滑条起始点音符样式)
+    endpoint: {
+        src: '/assets/skins/RhythmGameSprites.png',
+        x: -402.247,
+        y: -652.333,
+        width: 664.935,
+        height: 853.333
     }
 };

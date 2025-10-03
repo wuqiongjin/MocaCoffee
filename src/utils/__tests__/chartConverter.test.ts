@@ -21,13 +21,21 @@ describe('Chart Converter', () => {
                 { beat: 10.25, lane: 1 },
                 { beat: 10.5, lane: 0 }
             ]
+        },
+        {
+            type: "Long",
+            connections: [
+                { beat: 20, lane: 3 },
+                { beat: 20.5, lane: 4, hidden: true },
+                { beat: 21, lane: 5 }
+            ]
         }
     ];
 
     test('convertNotesToChartCode should convert notes correctly', () => {
         const chartCode = convertNotesToChartCode(testNotes);
 
-        expect(chartCode).toHaveLength(6);
+        expect(chartCode).toHaveLength(7);
 
         // Check BPM
         const bpmNote = chartCode.find(n => n.type === "BPM");
@@ -81,13 +89,24 @@ describe('Chart Converter', () => {
                 { beat: 10.5, lane: 0 }
             ]
         });
+
+        // Check Long note (converted to Slide)
+        const longNote = chartCode.find(n => n.type === "Slide" && n.connections.length === 3);
+        expect(longNote).toEqual({
+            type: "Slide",
+            connections: [
+                { beat: 20, lane: 3 },
+                { beat: 20.5, lane: 4, hidden: true },
+                { beat: 21, lane: 5 }
+            ]
+        });
     });
 
     test('convertChartCodeToNotes should convert back correctly', () => {
         const chartCode = convertNotesToChartCode(testNotes);
         const convertedNotes = convertChartCodeToNotes(chartCode);
 
-        expect(convertedNotes).toHaveLength(6);
+        expect(convertedNotes).toHaveLength(7);
 
         // Check BPM
         const bpmNote = convertedNotes.find(n => n.type === "BPM");
@@ -110,6 +129,10 @@ describe('Chart Converter', () => {
         // Check Slide note
         const slideNote = convertedNotes.find(n => n.type === "Slide");
         expect(slideNote).toBeDefined();
+
+        // Check Long note (converted to Slide)
+        const longNote = convertedNotes.find(n => n.type === "Slide" && n.connections.length === 3);
+        expect(longNote).toBeDefined();
     });
 
     test('chartCodeToJSON and parseChartCodeFromJSON should work correctly', () => {
@@ -134,7 +157,7 @@ describe('Chart Converter', () => {
             { beat: 4, lane: 10, type: "Single" }, // Invalid lane
             { beat: 8, lane: 2, type: "Directional", direction: "Up", width: 1 }, // Invalid direction
             { beat: 12, lane: 3, type: "Directional", direction: "Left", width: 5 }, // Invalid width
-        ] as any;
+        ] as unknown as ChartCodeNote[];
 
         const validation = validateChartCode(invalidChartCode);
 

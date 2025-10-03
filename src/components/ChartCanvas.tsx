@@ -22,7 +22,7 @@ const LANE_WIDTH = 40; // 每个轨道的宽度
 // 音符大小配置 - 可以在这里统一调整所有音符的大小
 const NOTE_ICON_SIZE = 46; // 单键音符、技能键的大小
 const DIRECTIONAL_ICON_SIZE = 72; // 方向滑键音符的大小
-const SLIDE_ICON_SIZE = 40; // 滑条连接点的大小
+const SLIDE_ICON_SIZE = 46; // 滑条连接点的大小
 
 // 音符高度压缩配置 - 可以调整音符的高度压缩比例
 const NOTE_HEIGHT_SCALE = 0.5; // 单键音符、技能键的高度压缩比例，0.5表示压缩到50%的高度
@@ -852,6 +852,9 @@ export default function ChartCanvas({
                   const iconSize = SLIDE_ICON_SIZE * scale; // 连接点图标大小
                   const iconHeight = iconSize * SLIDE_HEIGHT_SCALE; // 压缩后的高度
 
+                  // 统一使用普通滑条连接线
+                  const lineIcon = SVGSlideLineIcons.slideLine;
+
                   // 渲染连接线 - 使用sprite连接线
                   const lines = [];
                   for (let i = 0; i < connections.length - 1; i++) {
@@ -868,52 +871,69 @@ export default function ChartCanvas({
                     const centerX = (x1 + x2) / 2;
                     const centerY = (y1 + y2) / 2;
                     const length = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
-                    const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI);
+                    // 调整角度：
+                    const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI) - 90;
 
                     lines.push(
                       <g key={`line-${i}`} transform={`translate(${centerX}, ${centerY}) rotate(${angle})`}>
                         <SVGSpriteIcon
-                          {...(note.type === "Long" ? SVGSlideLineIcons.longLine : SVGSlideLineIcons.line)}
+                          {...lineIcon}
                           svgX={0}
                           svgY={0}
                           svgSize={length}
+                          svgWidth={LANE_WIDTH * scale}
+                          svgHeight={length * scale} // 连接线高度，可以根据需要调整
                         />
                       </g>
                     );
                   }
 
-                  // 渲染连接点 - 使用sprite图标
+                  // 渲染连接点 - 根据位置选择不同的sprite图标
                   const points = connections.map((conn, i) => {
                     const subBeat = conn.subBeat || 0;
                     const y = getNoteY(conn.beat, subBeat);
                     const x = getNoteX(conn.lane);
                     const isHidden = conn.hidden;
 
-                    // 根据连接点类型选择sprite图标
-                    let iconConfig = SVGNoteIcons.tap; // 默认单键音符
-                    if (conn.flick) {
-                      iconConfig = SVGNoteIcons.flick;
-                    } else if (conn.skill) {
-                      iconConfig = SVGNoteIcons.skill;
+                    // 根据连接点位置和属性选择sprite图标
+                    let iconConfig;
+                    const isFirst = i === 0;
+                    const isLast = i === connections.length - 1;
+
+                    if (isHidden) {
+                      // 隐藏的连接点不渲染
+                      return null;
+                    } else if (isFirst || isLast) {
+                      // 起点和终点使用endpoint图标
+                      iconConfig = {
+                        ...SVGSlideLineIcons.endpoint,
+                        ...(conn.flick ? SVGNoteIcons.flick : {}),
+                        ...(conn.skill ? SVGNoteIcons.skill : {})
+                      };
+                    } else {
+                      // 中间途径结点使用pathway图标
+                      iconConfig = {
+                        ...SVGSlideLineIcons.pathway,
+                        ...(conn.flick ? SVGNoteIcons.flick : {}),
+                        ...(conn.skill ? SVGNoteIcons.skill : {})
+                      };
                     }
 
                     return (
                       <g key={`point-${i}`}>
-                        {!isHidden && (
-                          <SVGSpriteIcon
-                            {...iconConfig}
-                            svgX={x}
-                            svgY={y}
-                            svgSize={iconSize}
-                            svgWidth={iconSize}
-                            svgHeight={iconHeight}
-                            scale={scale}
-                            onClick={() => handleClick(conn.beat, conn.lane, subBeat)}
-                          />
-                        )}
+                        <SVGSpriteIcon
+                          {...iconConfig}
+                          svgX={x}
+                          svgY={y}
+                          svgSize={iconSize}
+                          svgWidth={iconSize}
+                          svgHeight={iconHeight}
+                          scale={scale}
+                          onClick={() => handleClick(conn.beat, conn.lane, subBeat)}
+                        />
                       </g>
                     );
-                  });
+                  }).filter(Boolean); // 过滤掉null值
 
                   return (
                     <g key={idx}>
