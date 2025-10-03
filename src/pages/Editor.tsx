@@ -32,6 +32,7 @@ export default function Editor({ }: EditorProps) {
   // 谱面画布容器引用，用于缩放监听
   const chartAreaRef = useRef<HTMLDivElement>(null);
 
+
   // 拖拽处理函数
   const handleMouseDown = (e: React.MouseEvent, type: 'left' | 'right') => {
     e.preventDefault();
@@ -170,9 +171,9 @@ export default function Editor({ }: EditorProps) {
         }
         // 对于方向性音符，需要转换类型
         if (note && note.type === "LDirectional") {
-          note.type = "RDirectional";
+          (note as any).type = "RDirectional";
         } else if (note && note.type === "RDirectional") {
-          note.type = "LDirectional";
+          (note as any).type = "LDirectional";
         }
       });
       handleNotesChange(newNotes);
@@ -495,6 +496,7 @@ export default function Editor({ }: EditorProps) {
           <div style={{ color: '#9ca3af' }}>音符总数: {notes.filter(n => n.type !== "BPM").length}</div>
         </div>
       </div>
+
     </div>
   );
 }
