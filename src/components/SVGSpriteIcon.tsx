@@ -98,7 +98,7 @@ export default function SVGSpriteIcon({
                                     height: `${decorator.height}%`,
                                     maxWidth: `${decorator.width}%`,
                                     maxHeight: `${decorator.height}%`,
-                                    imageRendering: 'pixelated'
+                                    imageRendering: 'auto'
                                 }}
                             />
                         </div>
@@ -137,7 +137,7 @@ export default function SVGSpriteIcon({
                                 height: `${height}%`,
                                 maxWidth: `${width}%`,
                                 maxHeight: `${height}%`,
-                                imageRendering: 'pixelated'
+                                imageRendering: 'auto'
                             }}
                         />
                     </div>
