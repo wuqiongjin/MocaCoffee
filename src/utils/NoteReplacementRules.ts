@@ -330,6 +330,10 @@ export function handleSlideToSlideCombination(
 
     const newNotes = [...notes];
 
+    // 先处理音符覆盖替换：删除被滑条端点覆盖的其他音符
+    removeOverlappedNotes(newNotes, newSlideStart);
+    removeOverlappedNotes(newNotes, newSlideEnd);
+
     // 情况1：现有滑条终点 + 新滑条起点：将现有滑条终点转换为途径结点，合并滑条
     const existingEndPoint = slideEndpointManager.findEndPoint(newSlideStart.beat, newSlideStart.lane, newSlideStart.subBeat);
     if (existingEndPoint) {
@@ -402,5 +406,33 @@ export function handleSlideToSlideCombination(
     }
 
     return { shouldCombine: false, newNotes, message: "没有找到可组合的滑条" };
+}
+
+/**
+ * 删除被滑条覆盖的其他音符
+ * @param notes 音符数组
+ * @param position 滑条连接点位置
+ */
+export function removeOverlappedNotes(
+    notes: ChartNote[],
+    position: { beat: number; lane: number; subBeat?: number }
+): void {
+    console.log("检查位置覆盖:", position);
+    // 只处理非滑条类型的音符，滑条类型的音符由滑条组合逻辑处理
+    for (let i = notes.length - 1; i >= 0; i--) {
+        const note = notes[i];
+
+        if (note.type === "Single" || note.type === "LDirectional" || note.type === "RDirectional") {
+            // 检查单键音符和方向键是否与滑条连接点位置重叠
+            if (note.beat === position.beat &&
+                note.lane === position.lane &&
+                (note.subBeat || 0) === (position.subBeat || 0)) {
+                // 删除被覆盖的音符
+                notes.splice(i, 1);
+                console.log(`删除被覆盖的音符: ${note.type} at (${position.beat}, ${position.lane})`);
+            }
+        }
+        // 注意：不处理滑条类型的音符，让滑条组合逻辑来处理
+    }
 }
 

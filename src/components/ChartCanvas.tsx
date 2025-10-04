@@ -322,7 +322,6 @@ export default function ChartCanvas({
         }
         setSlideBuffer([]);
       } else {
-        console.warn("预期外的slide长度，由于工具栏不支持直接添加，所以目前不做任何额外处理");
         setSlideBuffer(newBuffer);
       }
     }
