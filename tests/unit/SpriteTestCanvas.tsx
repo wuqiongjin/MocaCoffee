@@ -12,7 +12,7 @@ export default function SpriteTestCanvas() {
                     <svg width="400" height="200" className="border border-gray-300 bg-white">
                         {/* 先测试显示完整图片 */}
                         <image
-                            href="/assets/skins/RhythmGameSprites.png"
+                            href="./assets/skins/RhythmGameSprites.png"
                             x={10}
                             y={10}
                             width="100"
@@ -76,7 +76,7 @@ export default function SpriteTestCanvas() {
                         <div>
                             <h3 className="text-lg font-medium mb-2">RhythmGameSprites.png</h3>
                             <img
-                                src="/assets/skins/RhythmGameSprites.png"
+                                src="./assets/skins/RhythmGameSprites.png"
                                 alt="RhythmGameSprites"
                                 className="max-w-full h-auto border border-gray-300"
                                 style={{ maxWidth: '300px' }}
@@ -85,7 +85,7 @@ export default function SpriteTestCanvas() {
                         <div>
                             <h3 className="text-lg font-medium mb-2">DirectionalFlickSprites.png</h3>
                             <img
-                                src="/assets/skins/DirectionalFlickSprites.png"
+                                src="./assets/skins/DirectionalFlickSprites.png"
                                 alt="DirectionalFlickSprites"
                                 className="max-w-full h-auto border border-gray-300"
                                 style={{ maxWidth: '300px' }}

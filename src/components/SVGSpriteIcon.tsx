@@ -157,7 +157,7 @@ export default function SVGSpriteIcon({
 export const BaseSpriteIcons = {
     // 单键音符 (Tap Note) - 使用竞品的确切坐标
     tap: {
-        src: '/assets/skins/RhythmGameSprites.png',
+        src: './assets/skins/RhythmGameSprites.png',
         x: -503.247,
         y: -753.333,
         width: 664.935,
@@ -166,7 +166,7 @@ export const BaseSpriteIcons = {
 
     // 滑键音符 (Flick Note) - 使用竞品的确切坐标
     flick: {
-        src: '/assets/skins/RhythmGameSprites.png',
+        src: './assets/skins/RhythmGameSprites.png',
         x: 0,
         y: -753.333,
         width: 664.935,
@@ -175,7 +175,7 @@ export const BaseSpriteIcons = {
 
     // 技能音符 (Skill Note) - 使用竞品的确切坐标
     skill: {
-        src: '/assets/skins/RhythmGameSprites.png',
+        src: './assets/skins/RhythmGameSprites.png',
         x: -301.948,
         y: -651.667,
         width: 664.935,
@@ -184,7 +184,7 @@ export const BaseSpriteIcons = {
 
     // 左方向滑键 - 使用竞品的确切坐标
     leftFlick: {
-        src: '/assets/skins/DirectionalFlickSprites.png',
+        src: './assets/skins/DirectionalFlickSprites.png',
         x: 2,
         y: -651.667,
         width: 320.468,
@@ -193,7 +193,7 @@ export const BaseSpriteIcons = {
 
     // 右方向滑键 - 使用竞品的确切坐标
     rightFlick: {
-        src: '/assets/skins/DirectionalFlickSprites.png',
+        src: './assets/skins/DirectionalFlickSprites.png',
         x: 2,
         y: -143.333,
         width: 320.468,
@@ -205,7 +205,7 @@ export const BaseSpriteIcons = {
 export const DecoratorIcons = {
     // 滑键装饰器，用于组合到滑键上方
     flickDecorator: {
-        src: '/assets/skins/RhythmGameSprites.png',
+        src: './assets/skins/RhythmGameSprites.png',
         x: -400.123,
         y: -53.333,
         width: 664.935,
@@ -219,7 +219,7 @@ export const DecoratorIcons = {
 
     // 左方向滑键装饰器，用于组合到滑键上方
     LDirectionalFlickDecorator: {
-        src: '/assets/skins/DirectionalFlickSprites.png',
+        src: './assets/skins/DirectionalFlickSprites.png',
         x: -199.247,
         y: -429.333,
         width: 664.935,
@@ -233,7 +233,7 @@ export const DecoratorIcons = {
 
     // 右方向滑键装饰器，用于组合到滑键上方
     RDirectionalFlickDecorator: {
-        src: '/assets/skins/DirectionalFlickSprites.png',
+        src: './assets/skins/DirectionalFlickSprites.png',
         x: -190.247,
         y: -283.333,
         width: 664.935,
@@ -404,7 +404,7 @@ export const SVGNoteIcons = CompositeNoteConfigs;
 export const SVGSlideLineIcons = {
     // 普通连接线
     slideLine: {
-        src: '/assets/skins/longNoteLine.png',
+        src: './assets/skins/longNoteLine.png',
         x: 0,
         y: 0,
         width: 100,
@@ -413,7 +413,7 @@ export const SVGSlideLineIcons = {
 
     // SP滑条连接线 (Special滑条连接线)
     SPSlideLine: {
-        src: '/assets/skins/longNoteLine2.png',
+        src: './assets/skins/longNoteLine2.png',
         x: 0,
         y: 0,
         width: 100,
@@ -422,7 +422,7 @@ export const SVGSlideLineIcons = {
 
     // pathway音符 (滑条途径结点音符样式)
     pathway: {
-        src: '/assets/skins/RhythmGameSprites.png',
+        src: './assets/skins/RhythmGameSprites.png',
         x: -100.247,
         y: -242.333,
         width: 664.935,
@@ -431,7 +431,7 @@ export const SVGSlideLineIcons = {
 
     // endpoint音符 (滑条起始点音符样式)
     endpoint: {
-        src: '/assets/skins/RhythmGameSprites.png',
+        src: './assets/skins/RhythmGameSprites.png',
         x: -402.247,
         y: -652.333,
         width: 664.935,

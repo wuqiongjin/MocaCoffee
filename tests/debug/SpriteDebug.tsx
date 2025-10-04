@@ -16,7 +16,7 @@ export default function SpriteDebugger() {
             </div>
             <div style={{ width: 100, height: 100, position: 'relative', overflow: 'hidden', border: '2px solid red' }}>
                 <img
-                    src="/assets/skins/RhythmGameSprites.png"
+                    src="./assets/skins/RhythmGameSprites.png"
                     alt="debug"
                     style={{
                         position: 'absolute',
