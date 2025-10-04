@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import type { ChartNote } from "../notes/Charts";
 import SVGSpriteIcon, { SVGNoteIcons, SVGSlideLineIcons } from './SVGSpriteIcon';
-import { handleNoteReplacement, handleSlideToSlideCombination } from '../utils/noteReplacementRules';
-import { slideEndpointManager } from '../utils/slideEndpointManager';
+import { handleNoteReplacement, handleSlideToSlideCombination } from '../utils/NoteReplacementRules';
+import { slideEndpointManager } from '../utils/SlideEndpointManager';
 
 interface ChartCanvasProps {
   notes: ChartNote[];

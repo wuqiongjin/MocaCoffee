@@ -1,5 +1,5 @@
 import type { ChartNote, SlideNote, LDirectionalNote, RDirectionalNote } from '../notes/Charts';
-import { slideEndpointManager } from './slideEndpointManager';
+import { slideEndpointManager } from './SlideEndpointManager';
 
 /**
  * 音符覆盖替换规则工具类

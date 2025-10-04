@@ -2,10 +2,10 @@ import { useState } from 'react'
 import './App.css'
 import SongUploader from "./components/SongUploader";
 import Editor from "./pages/Editor";
-import SpriteTest from "./components/SpriteTest";
-import SpriteDebug from "./components/SpriteDebug";
-import SpriteTestCanvas from "./components/SpriteTestCanvas";
-import CompositeIconTest from "./components/CompositeIconTest";
+import SpriteTest from "../tests/unit/SpriteTest";
+import SpriteDebug from "../tests/debug/SpriteDebug";
+import SpriteTestCanvas from "../tests/unit/SpriteTestCanvas";
+import CompositeIconTest from "../tests/unit/CompositeIconTest";
 
 function App() {
   const [song, setSong] = useState<File | null | undefined>(undefined);

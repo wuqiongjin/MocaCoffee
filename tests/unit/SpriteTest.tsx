@@ -1,5 +1,4 @@
-import React from 'react';
-import SpriteIcon, { NoteIcons, SlideLineIcons } from './SpriteIcon';
+import SpriteIcon, { NoteIcons, SlideLineIcons } from '../../src/components/SpriteIcon';
 
 export default function SpriteTest() {
     return (

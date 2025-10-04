@@ -1,5 +1,4 @@
-import React from 'react';
-import SVGSpriteIcon, { SVGNoteIcons } from './SVGSpriteIcon';
+import SVGSpriteIcon, { SVGNoteIcons } from '../../src/components/SVGSpriteIcon';
 
 export default function SpriteTestCanvas() {
     return (

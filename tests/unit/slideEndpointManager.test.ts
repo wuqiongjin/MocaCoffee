@@ -1,5 +1,5 @@
-import { SlideEndpointManager } from '../slideEndpointManager';
-import type { ChartNote, SlideNote } from '../../notes/Charts';
+import { SlideEndpointManager } from '../../src/utils/SlideEndpointManager';
+import type { ChartNote, SlideNote } from '../../src/notes/Charts';
 
 describe('SlideEndpointManager', () => {
     let manager: SlideEndpointManager;

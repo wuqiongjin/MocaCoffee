@@ -4,8 +4,8 @@ import {
     chartCodeToJSON,
     parseChartCodeFromJSON,
     validateChartCode
-} from '../chartConverter';
-import type { ChartNote } from '../../notes/Charts';
+} from '../../src/utils/ChartConverter';
+import type { ChartNote } from '../../src/notes/Charts';
 
 describe('Chart Converter', () => {
     const testNotes: ChartNote[] = [

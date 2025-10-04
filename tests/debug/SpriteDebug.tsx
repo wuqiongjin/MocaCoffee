@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 export default function SpriteDebugger() {
     const [x, setX] = useState(-503.247);
@@ -30,6 +30,6 @@ export default function SpriteDebugger() {
                     }}
                 />
             </div>
-            </div>
+        </div>
     );
 }

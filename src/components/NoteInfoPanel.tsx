@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { ChevronDown, ChevronUp, Copy, RotateCcw } from "lucide-react";
 import type { ChartNote } from "../notes/Charts";
-import { convertNotesToChartCode, chartCodeToJSON, parseChartCodeFromJSON, validateChartCode, convertChartCodeToNotes } from "../utils/chartConverter";
+import { convertNotesToChartCode, chartCodeToJSON, parseChartCodeFromJSON, validateChartCode, convertChartCodeToNotes } from "../utils/ChartConverter";
 
 interface NoteInfoPanelProps {
     selectedNotes: number[];
