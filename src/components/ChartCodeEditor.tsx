@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { ChartNote } from '../notes/Charts';
-import { convertNotesToChartCode, chartCodeToJSON, parseChartCodeFromJSON, validateChartCode, convertChartCodeToNotes, type ChartCodeNote } from '../utils/chartConverter';
+import { convertNotesToChartCode, chartCodeToJSON, parseChartCodeFromJSON, validateChartCode, convertChartCodeToNotes } from '../utils/chartConverter';
 
 interface ChartCodeEditorProps {
     notes: ChartNote[];

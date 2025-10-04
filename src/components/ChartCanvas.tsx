@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import type { ChartNote } from "../notes/Charts";
 import SVGSpriteIcon, { SVGNoteIcons, SVGSlideLineIcons } from './SVGSpriteIcon';
+import { handleNoteReplacement, handleSlideToSlideCombination } from '../utils/noteReplacementRules';
+import { slideEndpointManager } from '../utils/slideEndpointManager';
 
 interface ChartCanvasProps {
   notes: ChartNote[];
@@ -15,7 +17,7 @@ interface ChartCanvasProps {
 }
 
 const LANES = 7;   // 七条轨道
-const BEATS = 64;  // 显示 64 小节，(后续根据音频长度自动计算)
+const BEATS = 360;  // 显示 64 小节，(后续根据音频长度自动计算)
 const BEAT_HEIGHT = 220; // 每个节拍的高度（基准，当 bpm=120 时为 BEAT_HEIGHT）
 const LANE_WIDTH = 30; // 每个轨道的宽度
 
@@ -205,53 +207,7 @@ export default function ChartCanvas({
     // 这样可以保持用户当前的滚动位置
   }, [scale]);
 
-  // 处理方向键的组合和覆盖逻辑
-  const handleDirectionalNotePlacement = (beat: number, lane: number, subBeat: number, noteType: "LDirectional" | "RDirectional") => {
-    const newNotes = [...notes];
 
-    // 查找同一位置是否已有方向键
-    const existingNoteIndex = newNotes.findIndex(note =>
-      (note.type === "LDirectional" || note.type === "RDirectional") &&
-      'beat' in note && 'lane' in note && 'subBeat' in note &&
-      note.beat === beat && note.lane === lane && note.subBeat === subBeat
-    );
-
-    if (existingNoteIndex !== -1) {
-      const existingNote = newNotes[existingNoteIndex];
-
-      if (existingNote.type === noteType) {
-        // 同类型，组合处理
-        const note = existingNote as any;
-        if (note.length < 3) {
-          // 组合处理：增加长度
-          note.length += 1;
-        } else {
-          // 重置为1
-          note.length = 1;
-        }
-      } else {
-        // 不同类型，覆盖处理
-        newNotes[existingNoteIndex] = {
-          beat,
-          lane,
-          subBeat,
-          type: noteType,
-          length: 1
-        };
-      }
-    } else {
-      // 没有现有音符，创建新的方向键
-      newNotes.push({
-        beat,
-        lane,
-        subBeat,
-        type: noteType,
-        length: 1
-      });
-    }
-
-    setNotes(newNotes);
-  };
 
 
   const handleClick = (beat: number, lane: number, subBeat: number = 0) => {
@@ -295,17 +251,30 @@ export default function ChartCanvas({
     const preciseSubBeat = 0;
 
     if (selectedTool === "single") {
-      setNotes([...notes, { beat: preciseBeat, lane, subBeat: preciseSubBeat, type: "Single" }]);
+      const result = handleNoteReplacement(notes, preciseBeat, lane, preciseSubBeat, "Single");
+      if (result.shouldReplace) {
+        setNotes(result.newNotes);
+      }
     } else if (selectedTool === "flick") {
-      setNotes([...notes, { beat: preciseBeat, lane, subBeat: preciseSubBeat, type: "Single", flick: true }]);
+      const result = handleNoteReplacement(notes, preciseBeat, lane, preciseSubBeat, "flick");
+      if (result.shouldReplace) {
+        setNotes(result.newNotes);
+      }
     } else if (selectedTool === "skill") {
-      setNotes([...notes, { beat: preciseBeat, lane, subBeat: preciseSubBeat, type: "Single", skill: true }]);
+      const result = handleNoteReplacement(notes, preciseBeat, lane, preciseSubBeat, "skill");
+      if (result.shouldReplace) {
+        setNotes(result.newNotes);
+      }
     } else if (selectedTool === "ldirectional") {
-      // 处理左方向键的组合和覆盖逻辑
-      handleDirectionalNotePlacement(preciseBeat, lane, preciseSubBeat, "LDirectional");
+      const result = handleNoteReplacement(notes, preciseBeat, lane, preciseSubBeat, "ldirectional");
+      if (result.shouldReplace) {
+        setNotes(result.newNotes);
+      }
     } else if (selectedTool === "rdirectional") {
-      // 处理右方向键的组合和覆盖逻辑
-      handleDirectionalNotePlacement(preciseBeat, lane, preciseSubBeat, "RDirectional");
+      const result = handleNoteReplacement(notes, preciseBeat, lane, preciseSubBeat, "rdirectional");
+      if (result.shouldReplace) {
+        setNotes(result.newNotes);
+      }
     } else if (selectedTool === "bpm") {
       const bpm = parseInt(prompt("请输入 BPM 数值") || "0", 10);
       if (!isNaN(bpm) && bpm > 0) {
@@ -326,7 +295,7 @@ export default function ChartCanvas({
           setNotes([...notes, { beat: finalBeat, type: "BPM", bpm }]);
         }
       }
-    } else if (selectedTool === "slide") {
+    } else if (selectedTool === "slide" || selectedTool === "long") {
       const newBuffer = [...slideBuffer, { beat: preciseBeat, lane, subBeat: preciseSubBeat }];
       if (newBuffer.length === 2) {
         // 检查滑条是否横向放置
@@ -336,25 +305,24 @@ export default function ChartCanvas({
           setSlideBuffer([]);
           return;
         }
-        setNotes([...notes, { type: "Slide", connections: newBuffer }]);
-        setSlideBuffer([]);
-      } else {
-        setSlideBuffer(newBuffer);
-      }
-    } else if (selectedTool === "long") {
-      // LongNote 与 SlideNote 等价
-      const newBuffer = [...slideBuffer, { beat: preciseBeat, lane, subBeat: preciseSubBeat }];
-      if (newBuffer.length === 2) {
-        // 检查长按音符是否横向放置
-        const [p1, p2] = newBuffer;
-        if (p1.beat === p2.beat && p1.subBeat === p2.subBeat) {
-          alert("长按音符不允许横向放置！");
-          setSlideBuffer([]);
-          return;
+
+        // 此步骤非常关键: 不管用户放置的slide是正向还是反向, 都能找到正确的起点和终点
+        // sort newBuffer by beat (make sure the first beat is the smaller one)
+        newBuffer.sort((a, b) => a.beat - b.beat);
+
+        // 检查是否可以与现有滑条组合
+        const combinationResult = handleSlideToSlideCombination(notes, newBuffer);
+        if (combinationResult.shouldCombine) {
+          setNotes(combinationResult.newNotes);
+        } else {
+          // 创建新的滑条
+          const newNotes: ChartNote[] = [...notes, { type: selectedTool === "slide" ? "Slide" : "Long", connections: newBuffer }];
+          setNotes(newNotes);
+          slideEndpointManager.updateEndpoints(newNotes);
         }
-        setNotes([...notes, { type: "Long", connections: newBuffer }]);
         setSlideBuffer([]);
       } else {
+        console.warn("预期外的slide长度，由于工具栏不支持直接添加，所以目前不做任何额外处理");
         setSlideBuffer(newBuffer);
       }
     }
